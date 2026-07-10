@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Toaster } from 'react-hot-toast';
@@ -26,7 +26,7 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <Toaster position="top-right" />
-        <BrowserRouter>
+        <Router>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
@@ -44,7 +44,7 @@ export default function App() {
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Route>
           </Routes>
-        </BrowserRouter>
+        </Router>
       </AuthProvider>
     </ThemeProvider>
   );
