@@ -29,6 +29,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
@@ -40,6 +41,7 @@ export default function App() {
               <Route path="self-eval-settings" element={<SelfEvalCriteriaManagement />} />
               <Route path="audit-logs" element={<AuditLogs />} />
               <Route path="data-management" element={<DataManagement />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Route>
           </Routes>
         </BrowserRouter>
