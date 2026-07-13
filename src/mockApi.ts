@@ -106,7 +106,11 @@ export const apiFetch = async (input: RequestInfo | URL, init?: RequestInit): Pr
       }
       if (method === 'DELETE') {
         const id = url.split('/').pop();
-        if (db.employees) db.employees = db.employees.filter((e: any) => e.id !== id);
+        if (id === 'all') {
+          db.employees = [];
+        } else if (db.employees) {
+          db.employees = db.employees.filter((e: any) => e.id !== id);
+        }
         saveDb(db);
         return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }

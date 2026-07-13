@@ -51,6 +51,24 @@ export default function EmployeeProfiles() {
     }
   };
 
+  const handleResetAll = async () => {
+    if (!confirm('Are you ABSOLUTELY sure you want to delete ALL employee profiles? This cannot be undone.')) return;
+    try {
+      const res = await apiFetch(`/api/employees/all`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        toast.success('All employees deleted');
+        fetchEmployees();
+      } else {
+        toast.error('Failed to delete all');
+      }
+    } catch (err) {
+      toast.error('Failed to reset employees');
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -179,6 +197,9 @@ export default function EmployeeProfiles() {
             <>
               <button onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-500/20 font-semibold shadow-sm">
                 <Upload size={18} /> Bulk Import
+              </button>
+              <button onClick={handleResetAll} className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-xl hover:bg-red-100 dark:hover:bg-red-500/20 font-semibold shadow-sm">
+                <Trash2 size={18} /> Reset All
               </button>
             </>
           )}
