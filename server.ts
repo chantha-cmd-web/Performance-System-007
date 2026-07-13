@@ -714,6 +714,11 @@ app.get('/api/audit-logs', authenticateToken, requireSuperAdmin, (req, res) => {
   }
 });
 
+// API 404 Fallback - Ensure APIs return JSON instead of falling through to HTML
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'API endpoint not found' });
+});
+
 // Vite Middleware for Development / Static serving for Production
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
