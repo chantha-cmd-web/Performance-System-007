@@ -1,3 +1,4 @@
+import { apiFetch } from '../mockApi';
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -24,7 +25,7 @@ export default function NotificationsBell() {
     
     const fetchNotifications = async () => {
       try {
-        const res = await fetch('/api/notifications', {
+        const res = await apiFetch('/api/notifications', {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {

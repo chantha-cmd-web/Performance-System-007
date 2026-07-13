@@ -1,3 +1,4 @@
+import { apiFetch } from '../mockApi';
 import React, { useState, useEffect } from 'react';
 import { useSelfEvalSettings, SelfEvalProfile, Criterion } from '../hooks/useSettings';
 import { Save, Plus, Trash2, Edit2 } from 'lucide-react';

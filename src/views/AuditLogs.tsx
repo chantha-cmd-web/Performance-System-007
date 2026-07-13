@@ -1,3 +1,4 @@
+import { apiFetch } from '../mockApi';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ShieldAlert, Search, RefreshCcw } from 'lucide-react';
@@ -25,7 +26,7 @@ export default function AuditLogs() {
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/audit-logs', {
+      const res = await apiFetch('/api/audit-logs', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {

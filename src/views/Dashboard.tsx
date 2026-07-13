@@ -1,3 +1,4 @@
+import { apiFetch } from '../mockApi';
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
@@ -24,7 +25,7 @@ export default function Dashboard() {
 
   const fetchEvals = async () => {
     try {
-      const res = await fetch('/api/evaluations', {
+      const res = await apiFetch('/api/evaluations', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -277,7 +278,7 @@ export default function Dashboard() {
                                 <button onClick={async () => {
                                   if (window.confirm("Are you sure you want to delete this appraisal?")) {
                                     try {
-                                      const res = await fetch(`/api/evaluations/${evalRecord.id}`, {
+                                      const res = await apiFetch(`/api/evaluations/${evalRecord.id}`, {
                                         method: 'DELETE',
                                         headers: { Authorization: `Bearer ${token}` }
                                       });

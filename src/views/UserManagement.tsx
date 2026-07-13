@@ -1,3 +1,4 @@
+import { apiFetch } from '../mockApi';
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { User } from '../types';
@@ -43,7 +44,7 @@ export default function UserManagement() {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch('/api/users', {
+      const res = await apiFetch('/api/users', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -57,7 +58,7 @@ export default function UserManagement() {
 
   const fetchLogs = async () => {
     try {
-      const res = await fetch('/api/audit-logs', {
+      const res = await apiFetch('/api/audit-logs', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -94,7 +95,7 @@ export default function UserManagement() {
     }
 
     try {
-      const res = await fetch(`/api/users${modalMode === 'edit' ? `/${editingUser?.id}` : ''}`, {
+      const res = await apiFetch(`/api/users${modalMode === 'edit' ? `/${editingUser?.id}` : ''}`, {
         method: modalMode === 'edit' ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -121,7 +122,7 @@ export default function UserManagement() {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     
     try {
-      const res = await fetch(`/api/users/${id}`, {
+      const res = await apiFetch(`/api/users/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });

@@ -1,3 +1,4 @@
+import { apiFetch } from '../mockApi';
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Save, Upload, Download } from 'lucide-react';
@@ -21,7 +22,7 @@ export default function HRSettings() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const res = await fetch('/api/settings/hr_profiles', { headers: { Authorization: `Bearer ${token}` } });
+        const res = await apiFetch('/api/settings/hr_profiles', { headers: { Authorization: `Bearer ${token}` } });
         if (res.ok) {
           const data = await res.json();
           if (data) setSettings(data);
@@ -36,7 +37,7 @@ export default function HRSettings() {
   const saveSettings = async () => {
     setSaving(true);
     try {
-      const res = await fetch('/api/settings/hr_profiles', {
+      const res = await apiFetch('/api/settings/hr_profiles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(settings)

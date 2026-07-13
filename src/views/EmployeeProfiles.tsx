@@ -1,3 +1,4 @@
+import { apiFetch } from '../mockApi';
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Search, Plus, Upload, Download, Trash2, Edit2, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -15,7 +16,7 @@ export default function EmployeeProfiles() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch('/api/employees', {
+      const res = await apiFetch('/api/employees', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -35,7 +36,7 @@ export default function EmployeeProfiles() {
   const deleteEmployee = async (id: string) => {
     if (!confirm('Are you sure you want to delete this employee?')) return;
     try {
-      const res = await fetch(`/api/employees/${id}`, {
+      const res = await apiFetch(`/api/employees/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -88,7 +89,7 @@ export default function EmployeeProfiles() {
           }
 
           try {
-            const res = await fetch('/api/employees', {
+            const res = await apiFetch('/api/employees', {
               method: 'POST',
               headers: { 
                 'Content-Type': 'application/json',

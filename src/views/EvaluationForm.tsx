@@ -1,3 +1,4 @@
+import { apiFetch } from '../mockApi';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { CriteriaScore, PeerFeedback, STATUS_LABELS } from '../types';
@@ -49,7 +50,7 @@ export default function EvaluationForm() {
 
   const fetchEvaluation = async () => {
     try {
-      const res = await fetch(`/api/evaluations/${editId}`, {
+      const res = await apiFetch(`/api/evaluations/${editId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -189,7 +190,7 @@ export default function EvaluationForm() {
   const fetchEmployeeData = async (empId: string) => {
     if (!empId) return;
     try {
-      const res = await fetch(`/api/employees?id=${empId}`, {
+      const res = await apiFetch(`/api/employees?id=${empId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -243,7 +244,7 @@ export default function EvaluationForm() {
 
     try {
       const targetStatus = nextStatus(action);
-      const res = await fetch(editId ? `/api/evaluations/${editId}` : '/api/evaluations', {
+      const res = await apiFetch(editId ? `/api/evaluations/${editId}` : '/api/evaluations', {
         method: editId ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',

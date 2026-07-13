@@ -1,3 +1,4 @@
+import { apiFetch } from '../mockApi';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -46,7 +47,7 @@ export function useSettings() {
   const fetchSettings = async () => {
     if (!token) return;
     try {
-      const res = await fetch('/api/settings/evaluation_config', {
+      const res = await apiFetch('/api/settings/evaluation_config', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -66,7 +67,7 @@ export function useSettings() {
 
   const saveSettings = async (newConfig: EvaluationConfig) => {
     try {
-      const res = await fetch('/api/settings/evaluation_config', {
+      const res = await apiFetch('/api/settings/evaluation_config', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -95,7 +96,7 @@ export function useSelfEvalSettings() {
   const fetchProfiles = async () => {
     if (!token) return;
     try {
-      const res = await fetch('/api/settings/self_eval_profiles', {
+      const res = await apiFetch('/api/settings/self_eval_profiles', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -115,7 +116,7 @@ export function useSelfEvalSettings() {
 
   const saveProfiles = async (newProfiles: SelfEvalProfile[]) => {
     try {
-      const res = await fetch('/api/settings/self_eval_profiles', {
+      const res = await apiFetch('/api/settings/self_eval_profiles', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

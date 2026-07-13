@@ -1,3 +1,4 @@
+import { apiFetch } from '../mockApi';
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Database, Download, Upload, RotateCcw, AlertTriangle, FileJson, FileSpreadsheet, FileText, CheckCircle2 } from 'lucide-react';
@@ -29,7 +30,7 @@ export default function DataManagement() {
   const handleBackup = async (format: 'json' | 'excel') => {
     setLoading(true);
     try {
-      const res = await fetch('/api/data/export', {
+      const res = await apiFetch('/api/data/export', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -77,7 +78,7 @@ export default function DataManagement() {
     
     setLoading(true);
     try {
-      const res = await fetch(`/api/data/reset/${type}`, {
+      const res = await apiFetch(`/api/data/reset/${type}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -237,7 +238,7 @@ export default function DataManagement() {
                   const text = await file.text();
                   const data = JSON.parse(text);
                   
-                  const res = await fetch('/api/data/import', {
+                  const res = await apiFetch('/api/data/import', {
                     method: 'POST',
                     headers: { 
                       'Content-Type': 'application/json',

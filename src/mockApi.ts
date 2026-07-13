@@ -1,19 +1,24 @@
-const originalFetch = window.fetch;
-
 // Initialize mock DB
-if (!localStorage.getItem('mock_db')) {
-  localStorage.setItem('mock_db', JSON.stringify({
-    users: [{ id: 'admin', name: 'Admin User', password: 'password', role: 'superadmin' }],
-    employees: [],
-    evaluations: [],
-    auditLogs: [],
-    settings: {
-      evaluation_config: '{}',
-      self_eval_profiles: '[]',
-      hr_profiles: '[]'
+const initMockDb = () => {
+  try {
+    if (!localStorage.getItem('mock_db')) {
+      localStorage.setItem('mock_db', JSON.stringify({
+        users: [{ id: 'admin', name: 'Admin User', password: 'password', role: 'superadmin' }],
+        employees: [],
+        evaluations: [],
+        auditLogs: [],
+        settings: {
+          evaluation_config: '{}',
+          self_eval_profiles: '[]',
+          hr_profiles: '[]'
+        }
+      }));
     }
-  }));
-}
+  } catch (e) {
+    console.warn('localStorage not available', e);
+  }
+};
+initMockDb();
 
 const getDb = () => {
   try {
@@ -22,21 +27,42 @@ const getDb = () => {
     return {};
   }
 };
-const saveDb = (db: any) => localStorage.setItem('mock_db', JSON.stringify(db));
+const saveDb = (db: any) => {
+  try {
+    localStorage.setItem('mock_db', JSON.stringify(db));
+  } catch (e) {}
+};
 
-window.fetch = async (input, init) => {
-  let url = typeof input === 'string' ? input : input instanceof Request ? input.url : '';
-  if (url.startsWith('/api/')) {
+export const apiFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  let url = '';
+  if (typeof input === 'string') {
+    url = input;
+  } else if (input instanceof Request) {
+    url = input.url;
+  } else if (input instanceof URL) {
+    url = input.toString();
+  } else if (input && typeof (input as any).toString === 'function') {
+    url = (input as any).toString();
+  }
+
+  if (url.includes('/api/')) {
     const db = getDb();
     const method = init?.method || 'GET';
-    const body = init?.body ? JSON.parse(init.body as string) : null;
+    let body: any = null;
+    try {
+      if (init?.body && typeof init.body === 'string') {
+        body = JSON.parse(init.body);
+      }
+    } catch (e) {
+      console.error('Error parsing fetch body in mock', e);
+    }
     
     // Simulate delay
     await new Promise(r => setTimeout(r, 100));
 
     // Auth
-    if (url === '/api/auth/login' && method === 'POST') {
-      const user = db.users.find((u: any) => u.id === body.userId && u.password === body.password);
+    if (url.includes('/api/auth/login') && method === 'POST') {
+      const user = db.users?.find((u: any) => u.id === body?.userId && u.password === body?.password);
       if (user) {
         return new Response(JSON.stringify({ token: 'mock-token', user }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
@@ -44,33 +70,35 @@ window.fetch = async (input, init) => {
     }
 
     // Generic Settings Getters
-    if (url.startsWith('/api/settings/') && method === 'GET') {
+    if (url.includes('/api/settings/') && method === 'GET') {
       const key = url.split('/').pop()!;
-      let data = db.settings[key];
+      let data = db.settings?.[key];
       try { data = JSON.parse(data); } catch (e) {}
       return new Response(JSON.stringify(data || []), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     
     // Generic Settings Setters
-    if (url.startsWith('/api/settings/') && method === 'POST') {
+    if (url.includes('/api/settings/') && method === 'POST') {
       const key = url.split('/').pop()!;
+      if (!db.settings) db.settings = {};
       db.settings[key] = typeof body === 'string' ? body : JSON.stringify(body);
       saveDb(db);
       return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
 
     // Employees
-    if (url.startsWith('/api/employees')) {
+    if (url.includes('/api/employees')) {
       if (method === 'GET') {
-        const id = new URL(url, 'http://localhost').searchParams.get('id');
+        const id = new URL(url, window.location.origin).searchParams.get('id');
         if (id) {
-           const emp = db.employees.find((e: any) => e.id === id);
+           const emp = db.employees?.find((e: any) => e.id === id);
            return new Response(JSON.stringify(emp || null), { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
-        return new Response(JSON.stringify(db.employees), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify(db.employees || []), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
       if (method === 'POST') {
-        const idx = db.employees.findIndex((e: any) => e.id === body.id);
+        if (!db.employees) db.employees = [];
+        const idx = db.employees.findIndex((e: any) => e.id === body?.id);
         if (idx >= 0) db.employees[idx] = body;
         else db.employees.push(body);
         saveDb(db);
@@ -78,26 +106,27 @@ window.fetch = async (input, init) => {
       }
       if (method === 'DELETE') {
         const id = url.split('/').pop();
-        db.employees = db.employees.filter((e: any) => e.id !== id);
+        if (db.employees) db.employees = db.employees.filter((e: any) => e.id !== id);
         saveDb(db);
         return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
     }
 
     // Evaluations
-    if (url.startsWith('/api/evaluations')) {
+    if (url.includes('/api/evaluations')) {
       const idMatch = url.match(/\/api\/evaluations\/(\d+|mock-[\w-]+)/);
       const id = idMatch ? idMatch[1] : null;
 
       if (method === 'GET') {
         if (id) {
-          const ev = db.evaluations.find((e: any) => e.id == id);
+          const ev = db.evaluations?.find((e: any) => e.id == id);
           if (ev) return new Response(JSON.stringify(ev), { status: 200, headers: { 'Content-Type': 'application/json' } });
           return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
         }
-        return new Response(JSON.stringify(db.evaluations), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify(db.evaluations || []), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
       if (method === 'POST') {
+        if (!db.evaluations) db.evaluations = [];
         body.id = 'mock-' + Date.now();
         body.createdAt = new Date().toISOString();
         db.evaluations.push(body);
@@ -105,6 +134,7 @@ window.fetch = async (input, init) => {
         return new Response(JSON.stringify({ success: true, id: body.id }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
       if (method === 'PUT' && id) {
+        if (!db.evaluations) db.evaluations = [];
         const idx = db.evaluations.findIndex((e: any) => e.id == id);
         if (idx >= 0) {
           db.evaluations[idx] = { ...db.evaluations[idx], ...body, id: db.evaluations[idx].id };
@@ -113,22 +143,24 @@ window.fetch = async (input, init) => {
         return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
       if (method === 'DELETE' && id) {
-        db.evaluations = db.evaluations.filter((e: any) => e.id != id);
+        if (db.evaluations) db.evaluations = db.evaluations.filter((e: any) => e.id != id);
         saveDb(db);
         return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
     }
 
     // Users
-    if (url.startsWith('/api/users')) {
+    if (url.includes('/api/users')) {
       const id = url.split('/').pop();
-      if (method === 'GET') return new Response(JSON.stringify(db.users), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      if (method === 'GET') return new Response(JSON.stringify(db.users || []), { status: 200, headers: { 'Content-Type': 'application/json' } });
       if (method === 'POST') {
+        if (!db.users) db.users = [];
         db.users.push(body);
         saveDb(db);
         return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
-      if (method === 'PUT' && id && id !== 'users') {
+      if (method === 'PUT' && id && !url.endsWith('/users')) {
+        if (!db.users) db.users = [];
         const idx = db.users.findIndex((u: any) => u.id === id);
         if (idx >= 0) {
            db.users[idx] = { ...db.users[idx], ...body, id: db.users[idx].id };
@@ -136,32 +168,32 @@ window.fetch = async (input, init) => {
         }
         return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
-      if (method === 'DELETE' && id && id !== 'users') {
-        db.users = db.users.filter((u: any) => u.id !== id);
+      if (method === 'DELETE' && id && !url.endsWith('/users')) {
+        if (db.users) db.users = db.users.filter((u: any) => u.id !== id);
         saveDb(db);
         return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
     }
 
     // Audit Logs
-    if (url === '/api/audit-logs' && method === 'GET') {
-      return new Response(JSON.stringify(db.auditLogs), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (url.includes('/api/audit-logs') && method === 'GET') {
+      return new Response(JSON.stringify(db.auditLogs || []), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
 
     // Notifications
-    if (url === '/api/notifications' && method === 'GET') {
+    if (url.includes('/api/notifications') && method === 'GET') {
       return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     
     // Data Management
-    if (url === '/api/data/export' && method === 'GET') {
+    if (url.includes('/api/data/export') && method === 'GET') {
       return new Response(JSON.stringify(db), { status: 200, headers: { 'Content-Type': 'application/json', 'Content-Disposition': 'attachment; filename="data.json"' } });
     }
-    if (url === '/api/data/import' && method === 'POST') {
+    if (url.includes('/api/data/import') && method === 'POST') {
       saveDb(body);
       return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
-    if (url.startsWith('/api/data/reset/') && method === 'POST') {
+    if (url.includes('/api/data/reset/') && method === 'POST') {
       const type = url.split('/').pop()!;
       if (type === 'all') {
         db.users = [{ id: 'admin', name: 'Admin User', password: 'password', role: 'superadmin' }];
@@ -178,5 +210,5 @@ window.fetch = async (input, init) => {
     // Default fallback
     return new Response(JSON.stringify({ success: true, data: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
-  return originalFetch(input, init);
+  return window.fetch(input, init);
 };
