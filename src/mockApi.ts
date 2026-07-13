@@ -15,7 +15,13 @@ if (!localStorage.getItem('mock_db')) {
   }));
 }
 
-const getDb = () => JSON.parse(localStorage.getItem('mock_db') || '{}');
+const getDb = () => {
+  try {
+    return JSON.parse(localStorage.getItem('mock_db') || '{}');
+  } catch (e) {
+    return {};
+  }
+};
 const saveDb = (db: any) => localStorage.setItem('mock_db', JSON.stringify(db));
 
 window.fetch = async (input, init) => {
