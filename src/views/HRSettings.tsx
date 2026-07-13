@@ -25,7 +25,16 @@ export default function HRSettings() {
         const res = await apiFetch('/api/settings/hr_profiles', { headers: { Authorization: `Bearer ${token}` } });
         if (res.ok) {
           const data = await res.json();
-          if (data) setSettings(data);
+          if (data && typeof data === 'object' && !Array.isArray(data) && Object.keys(data).length > 0) {
+            setSettings({
+              campuses: data.campuses || '',
+              departments: data.departments || '',
+              positions: data.positions || '',
+              categories: data.categories || '',
+              evalModels: data.evalModels || '',
+              evalPeriods: data.evalPeriods || ''
+            });
+          }
         }
       } catch (err) {} finally {
         setLoading(false);

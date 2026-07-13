@@ -52,7 +52,16 @@ export function useSettings() {
       });
       if (res.ok) {
         const data = await res.json();
-        setConfig(data);
+        if (data && data.types && data.criteriaSets) {
+          setConfig(data);
+        } else {
+          // Provide default structure
+          setConfig({
+            types: [],
+            weightingSchemes: [],
+            criteriaSets: {}
+          });
+        }
       }
     } catch (e) {
       console.error(e);
@@ -101,7 +110,7 @@ export function useSelfEvalSettings() {
       });
       if (res.ok) {
         const data = await res.json();
-        setProfiles(data || []);
+        setProfiles(Array.isArray(data) ? data : []);
       }
     } catch (e) {
       console.error(e);

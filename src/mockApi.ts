@@ -10,7 +10,7 @@ const initMockDb = () => {
         settings: {
           evaluation_config: '{}',
           self_eval_profiles: '[]',
-          hr_profiles: '[]'
+          hr_profiles: '{}'
         }
       }));
     }

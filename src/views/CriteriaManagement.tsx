@@ -17,7 +17,7 @@ export default function CriteriaManagement() {
   }, [config]);
 
   React.useEffect(() => {
-    if (localConfig && localConfig.types.length > 0) {
+    if (localConfig && localConfig.types && localConfig.types.length > 0) {
       if (!localConfig.types.some(t => t.id === selectedType)) {
         setSelectedType(localConfig.types[0].id);
       }
