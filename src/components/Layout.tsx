@@ -229,13 +229,33 @@ export default function Layout() {
             <div className="font-bold text-slate-800 dark:text-slate-100 tracking-tight">Annual Performance Dashboard <span className="font-medium text-slate-500 dark:text-slate-400 ml-2 hidden sm:inline-block">/ ប្រព័ន្ធគ្រប់គ្រងការវាយតម្លៃបុគ្គលិក</span></div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <NotificationsBell />
             <button
               onClick={toggleTheme}
               className="flex h-10 w-10 items-center justify-center rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 shadow-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
+              title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
             >
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+            
+            <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700" />
+            
+            <div className="flex items-center gap-2 px-1">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 text-white font-bold flex items-center justify-center text-sm shadow-md ring-2 ring-indigo-500/20">
+                {user?.name?.charAt(0) || 'A'}
+              </div>
+              <div className="hidden sm:block text-xs font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[120px]">
+                {user?.name || 'Administrator'}
+              </div>
+            </div>
+
+            <button 
+              onClick={logout}
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors shadow-sm"
+              title="Sign Out"
+            >
+              <LogOut size={18} />
             </button>
           </div>
         </header>
