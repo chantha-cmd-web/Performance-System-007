@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function isValidAutosave(data) {
+      return data.userId is string && data.userId.size() <= 128
+        && data.editId is string && data.editId.size() <= 128
+        && data.formData is map
+        && data.criteriaScores is list
+        && data.peerFeedbacks is list
+        && data.lastSavedAt is string;
+    }
+
+    match /evaluation_autosaves/{draftId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidAutosave(incoming());
+      allow delete: if isSignedIn();
+    }
+  }
+}

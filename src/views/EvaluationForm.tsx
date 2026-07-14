@@ -7,6 +7,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSettings, useSelfEvalSettings } from '../hooks/useSettings';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
+import {
+  saveEvaluationDraft,
+  loadEvaluationDraft,
+  deleteEvaluationDraft,
+  testConnection
+} from '../lib/firestoreAutosave';
 
 export default function EvaluationForm() {
   const { token, user } = useAuth();
@@ -41,6 +47,13 @@ export default function EvaluationForm() {
 
   const [criteriaScores, setCriteriaScores] = useState<CriteriaScore[]>([]);
   const [peerFeedbacks, setPeerFeedbacks] = useState<PeerFeedback[]>([]);
+
+  // Autosave specific state variables
+  const [draftData, setDraftData] = useState<any>(null);
+  const [draftTimestamp, setDraftTimestamp] = useState<string>('');
+  const [showRestoreBanner, setShowRestoreBanner] = useState<boolean>(false);
+  const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'restored'>('idle');
+  const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
 
   useEffect(() => {
     if (editId) {
@@ -85,6 +98,84 @@ export default function EvaluationForm() {
     } finally {
       setInitialLoad(false);
     }
+  };
+
+  // Check for auto-saved draft on mount
+  useEffect(() => {
+    if (isViewOnly || !user?.id || initialLoad) return;
+
+    const checkForDraft = async () => {
+      try {
+        await testConnection();
+        const draft = await loadEvaluationDraft(user.id, editId || 'new');
+        if (draft && draft.lastSavedAt) {
+          // If editing an existing evaluation, only show draft if draft is newer than database record
+          if (editId && formData.createdAt) {
+            const draftTime = new Date(draft.lastSavedAt).getTime();
+            const recordTime = new Date(formData.createdAt).getTime();
+            if (draftTime <= recordTime) {
+              return; // draft is older or same, don't show restore banner
+            }
+          }
+          setDraftData(draft);
+          setDraftTimestamp(new Date(draft.lastSavedAt).toLocaleString());
+          setShowRestoreBanner(true);
+        }
+      } catch (e) {
+        console.error("Error checking for auto-saved draft", e);
+      }
+    };
+
+    checkForDraft();
+  }, [user?.id, editId, isViewOnly, initialLoad, formData.createdAt]);
+
+  // Debounced auto-save effect
+  useEffect(() => {
+    if (isViewOnly || !user?.id || initialLoad) return;
+    
+    // Require at least some minimal input before we auto-save a blank form
+    if (!formData.employeeId && !formData.employeeName) return;
+
+    setAutosaveStatus('saving');
+
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        await saveEvaluationDraft(
+          user.id,
+          editId || 'new',
+          formData,
+          criteriaScores,
+          peerFeedbacks
+        );
+        setAutosaveStatus('saved');
+        setLastSavedTime(new Date());
+      } catch (e) {
+        console.error("Error auto-saving progress", e);
+        setAutosaveStatus('error');
+      }
+    }, 3000); // 3-second debounce
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [formData, criteriaScores, peerFeedbacks, user?.id, editId, isViewOnly, initialLoad]);
+
+  const handleRestoreDraft = () => {
+    if (!draftData) return;
+
+    if (draftData.formData) {
+      setFormData(prev => ({
+        ...prev,
+        ...draftData.formData
+      }));
+    }
+    if (draftData.criteriaScores) {
+      setCriteriaScores(draftData.criteriaScores);
+    }
+    if (draftData.peerFeedbacks) {
+      setPeerFeedbacks(draftData.peerFeedbacks);
+    }
+
+    setAutosaveStatus('restored');
+    setShowRestoreBanner(false);
   };
 
   useEffect(() => {
@@ -262,6 +353,16 @@ export default function EvaluationForm() {
       });
 
       if (!res.ok) throw new Error('Failed to submit evaluation');
+      
+      // Successfully saved/submitted, clean up the draft in Firestore
+      if (user?.id) {
+        try {
+          await deleteEvaluationDraft(user.id, editId || 'new');
+        } catch (e) {
+          console.error("Failed to delete draft from Firestore", e);
+        }
+      }
+
       navigate('/dashboard');
     } catch (err) {
       console.error(err);
@@ -299,6 +400,38 @@ export default function EvaluationForm() {
         </div>
         
         <div className="flex items-center gap-3">
+          {/* Autosave Status Indicator */}
+          {!isViewOnly && (
+            <div className="hidden md:flex items-center gap-2 mr-2 text-xs font-semibold">
+              {autosaveStatus === 'saving' && (
+                <>
+                  <div className="w-2 h-2 bg-amber-500 rounded-full animate-ping"></div>
+                  <span className="text-slate-500 dark:text-slate-400 font-medium">កំពុងរក្សាទុក... / Auto-saving...</span>
+                </>
+              )}
+              {autosaveStatus === 'saved' && (
+                <>
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                    រក្សាទុកស្វ័យប្រវត្តរួចរាល់ / Auto-saved {lastSavedTime ? `(${format(lastSavedTime, 'HH:mm:ss')})` : ''}
+                  </span>
+                </>
+              )}
+              {autosaveStatus === 'restored' && (
+                <>
+                  <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                  <span className="text-indigo-600 dark:text-indigo-400 font-medium">បានស្តារឡើងវិញ / Draft Restored</span>
+                </>
+              )}
+              {autosaveStatus === 'error' && (
+                <>
+                  <div className="w-2 h-2 bg-rose-500 rounded-full"></div>
+                  <span className="text-rose-600 dark:text-rose-400 font-medium">កំហុសក្នុងការរក្សាទុក / Save Error</span>
+                </>
+              )}
+            </div>
+          )}
+
           {isViewOnly && (
             <button 
               type="button"
@@ -334,6 +467,37 @@ export default function EvaluationForm() {
           )}
         </div>
       </div>
+
+      {/* Restore Draft Banner */}
+      {showRestoreBanner && (
+        <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-300 print:hidden">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            </div>
+            <div className="text-left">
+              <h4 className="font-bold text-amber-900 dark:text-amber-300 text-sm">រកឃើញការវាយតម្លៃដែលមិនបានរក្សាទុក / Unsaved Draft Found</h4>
+              <p className="text-xs text-amber-700 dark:text-amber-400 font-medium mt-0.5">We found an auto-saved draft of this form from {draftTimestamp}. Would you like to restore it?</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={() => setShowRestoreBanner(false)}
+              className="px-4 py-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-xs font-bold transition-colors"
+            >
+              Dismiss / បដិសេធ
+            </button>
+            <button
+              type="button"
+              onClick={handleRestoreDraft}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
+            >
+              Restore Draft / ស្តារឡើងវិញ
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="p-8 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">

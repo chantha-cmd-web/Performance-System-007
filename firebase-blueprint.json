@@ -1,0 +1,43 @@
+{
+  "entities": {
+    "EvaluationAutosave": {
+      "title": "EvaluationAutosave",
+      "description": "Stores periodic auto-saved progress of an evaluation form",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user who owns this draft"
+        },
+        "editId": {
+          "type": "string",
+          "description": "The evaluation ID being edited, or 'new'"
+        },
+        "formData": {
+          "type": "object",
+          "description": "The form metadata fields"
+        },
+        "criteriaScores": {
+          "type": "array",
+          "description": "The current list of scores"
+        },
+        "peerFeedbacks": {
+          "type": "array",
+          "description": "The current list of peer feedbacks"
+        },
+        "lastSavedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when this draft was last saved"
+        }
+      },
+      "required": ["userId", "editId", "formData", "criteriaScores", "peerFeedbacks", "lastSavedAt"]
+    }
+  },
+  "firestore": {
+    "evaluation_autosaves/{draftId}": {
+      "schema": "EvaluationAutosave",
+      "description": "Collection of evaluation form auto-saved drafts"
+    }
+  }
+}
