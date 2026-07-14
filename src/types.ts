@@ -59,8 +59,11 @@ export interface Employee {
   category?: string;
   supervisorId?: string;
   supporterId?: string;
+  managementId?: string;
+  evalCondition?: string;
   evalModel?: string;
   evalPeriod?: string;
+  status?: string;
 }
 
 export const STATUS_LABELS: Record<string, { label: string, kh: string, color: string }> = {

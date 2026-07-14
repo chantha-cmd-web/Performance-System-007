@@ -1,10 +1,12 @@
 import { apiFetch } from '../mockApi';
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, Plus, Upload, Download, Trash2, Edit2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Search, Plus, Upload, Download, Trash2, Edit2, CheckCircle2, AlertCircle, X, FileText, FileSpreadsheet } from 'lucide-react';
 import { Employee } from '../types';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
+
+type ImportError = { row: number; id: string; message: string };
 
 export default function EmployeeProfiles() {
   const { token, user } = useAuth();
@@ -12,6 +14,8 @@ export default function EmployeeProfiles() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importStatus, setImportStatus] = useState<'idle' | 'processing' | 'summary'>('idle');
+  const [importSummary, setImportSummary] = useState({ total: 0, success: 0, failed: 0, errors: [] as ImportError[] });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchEmployees = async () => {
@@ -69,9 +73,22 @@ export default function EmployeeProfiles() {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    setImportStatus('processing');
+    setImportSummary({ total: 0, success: 0, failed: 0, errors: [] });
+    
+    const evalConditionMap: Record<string, string> = {
+      '60-40 (Direct Supervisor 60% + Supporter 40%)': 'campus_60_40',
+      '60–40 (Direct Supervisor 60% + Supporter 40%)': 'campus_60_40',
+      '50-50 (Direct Supervisor 50% + Supporter 50%)': 'campus_50_50',
+      '50–50 (Direct Supervisor 50% + Supporter 50%)': 'campus_50_50',
+      '100% Campus (Direct Supervisor only)': 'campus_100',
+      '100% Central (Central Office Supervisor only)': 'central_100',
+      '100% Management (Management only)': 'mgmt_100'
+    };
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
@@ -83,28 +100,56 @@ export default function EmployeeProfiles() {
         const data = XLSX.utils.sheet_to_json(ws);
         
         let successCount = 0;
-        let errorCount = 0;
-
-        // Process sequentially to not overwhelm server, could be batched in real app
-        for (const row of data as any[]) {
-          const emp = {
-            id: String(row['Staff ID'] || row['id'] || ''),
-            name: String(row['Employee Name'] || row['name'] || ''),
-            khmerName: String(row['Khmer Name'] || row['khmerName'] || ''),
-            campus: String(row['Campus'] || row['campus'] || ''),
-            department: String(row['Department'] || row['department'] || ''),
-            position: String(row['Position'] || row['position'] || ''),
-            category: String(row['Category'] || row['category'] || ''),
-            supervisorId: String(row['Direct Supervisor ID'] || row['supervisorId'] || ''),
-            supporterId: String(row['Supporter ID'] || row['supporterId'] || ''),
-            evalModel: String(row['Evaluation Model'] || row['evalModel'] || ''),
-            evalPeriod: String(row['Evaluation Period'] || row['evalPeriod'] || ''),
-          };
-
-          if (!emp.id || !emp.name) {
-            errorCount++;
+        let failedCount = 0;
+        const errors: ImportError[] = [];
+        const existingIds = new Set(employees.map(emp => emp.id));
+        const newIdsInImport = new Set();
+        
+        for (let i = 0; i < data.length; i++) {
+          const row: any = data[i];
+          const rowNum = i + 2;
+          const staffId = String(row['Staff ID'] || '').trim();
+          
+          if (!staffId) {
+            errors.push({ row: rowNum, id: 'Unknown', message: 'Staff ID is required' });
+            failedCount++;
             continue;
           }
+          
+          if (existingIds.has(staffId) || newIdsInImport.has(staffId)) {
+            errors.push({ row: rowNum, id: staffId, message: 'Duplicate Staff ID found' });
+            failedCount++;
+            continue;
+          }
+          
+          if (!row['Employee Name']) {
+            errors.push({ row: rowNum, id: staffId, message: 'Employee Name is required' });
+            failedCount++;
+            continue;
+          }
+          
+          const rawCondition = String(row['Evaluation Condition'] || '').trim();
+          let matchedModel = String(row['Evaluation Workflow'] || row['Evaluation Model'] || row['evalModel'] || '').trim();
+          if (rawCondition && evalConditionMap[rawCondition]) {
+            matchedModel = evalConditionMap[rawCondition];
+          }
+
+          const emp = {
+            id: staffId,
+            name: String(row['Employee Name'] || row['name'] || '').trim(),
+            khmerName: String(row['Khmer Name'] || row['khmerName'] || '').trim(),
+            campus: String(row['Campus'] || row['campus'] || '').trim(),
+            department: String(row['Department'] || row['department'] || '').trim(),
+            position: String(row['Position'] || row['position'] || '').trim(),
+            category: String(row['Category'] || row['category'] || '').trim(),
+            supervisorId: String(row['Direct Supervisor'] || row['Direct Supervisor ID'] || row['supervisorId'] || '').trim(),
+            supporterId: String(row['Supporter'] || row['Supporter ID'] || row['supporterId'] || '').trim(),
+            managementId: String(row['Management Evaluator'] || row['Management Evaluator ID'] || '').trim(),
+            evalCondition: rawCondition,
+            evalModel: matchedModel,
+            evalPeriod: String(row['Evaluation Period'] || row['evalPeriod'] || '').trim(),
+            status: String(row['Status'] || '').trim() || 'Active',
+          };
 
           try {
             const res = await apiFetch('/api/employees', {
@@ -115,19 +160,30 @@ export default function EmployeeProfiles() {
               },
               body: JSON.stringify(emp)
             });
-            if (res.ok) successCount++;
-            else errorCount++;
+            if (res.ok) {
+              successCount++;
+              newIdsInImport.add(staffId);
+            } else {
+              failedCount++;
+              errors.push({ row: rowNum, id: staffId, message: 'Server failed to save record' });
+            }
           } catch (err) {
-            errorCount++;
+            failedCount++;
+            errors.push({ row: rowNum, id: staffId, message: 'Network error during save' });
           }
         }
         
-        toast.success(`Import complete! ${successCount} imported, ${errorCount} failed.`);
-        setIsImportModalOpen(false);
+        setImportSummary({
+          total: data.length,
+          success: successCount,
+          failed: failedCount,
+          errors
+        });
+        setImportStatus('summary');
         fetchEmployees();
-        
       } catch (err) {
-        toast.error('Failed to process file');
+        toast.error('Failed to process file. Ensure it is a valid Excel format.');
+        setImportStatus('idle');
       }
     };
     reader.readAsBinaryString(file);
@@ -164,12 +220,22 @@ export default function EmployeeProfiles() {
       'Department': 'IT',
       'Position': 'Developer',
       'Category': 'Full-time',
-      'Direct Supervisor ID': 'SUP001',
-      'Supporter ID': '',
-      'Evaluation Model': 'campus_60_40',
-      'Evaluation Period': 'Q3 2026'
+      'Direct Supervisor': 'SUP001',
+      'Supporter': 'SUP002',
+      'Management Evaluator': '',
+      'Evaluation Condition': '60-40 (Direct Supervisor 60% + Supporter 40%)',
+      'Evaluation Workflow': 'campus_60_40',
+      'Evaluation Period': 'Q3 2026',
+      'Status': 'Active'
     }];
     const ws = XLSX.utils.json_to_sheet(data);
+    // Add column widths
+    ws['!cols'] = [
+      { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, 
+      { wch: 15 }, { wch: 20 }, { wch: 12 }, { wch: 18 }, 
+      { wch: 15 }, { wch: 20 }, { wch: 45 }, { wch: 20 },
+      { wch: 18 }, { wch: 10 }
+    ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template");
     XLSX.writeFile(wb, "employee_import_template.xlsx");
@@ -271,32 +337,117 @@ export default function EmployeeProfiles() {
 
       {isImportModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-700">
-              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Bulk Import Employees</h2>
-              <p className="text-sm text-slate-500 mt-1">Upload an Excel or CSV file to import employees.</p>
-            </div>
-            <div className="p-6 space-y-6">
-              <button onClick={handleDownloadTemplate} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400 font-bold hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors">
-                <Download size={18} /> Download Template
-              </button>
-              
-              <div className="relative">
-                <input 
-                  type="file" 
-                  accept=".xlsx, .xls, .csv" 
-                  ref={fileInputRef}
-                  onChange={handleFileUpload}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-                />
-                <div className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-colors">
-                  <Upload size={18} /> Select File to Import
-                </div>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Bulk Import Employees</h2>
+                <p className="text-sm text-slate-500 mt-1">Upload an Excel or CSV file to import employees and assign evaluation workflows.</p>
               </div>
+              {importStatus !== 'processing' && (
+                <button onClick={() => { setIsImportModalOpen(false); setImportStatus('idle'); }} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700">
+                  <X size={20} />
+                </button>
+              )}
             </div>
-            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700 flex justify-end">
-              <button onClick={() => setIsImportModalOpen(false)} className="px-4 py-2 rounded-lg font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700">Close</button>
+            
+            <div className="p-6 flex-1 overflow-y-auto min-h-[300px]">
+              {importStatus === 'idle' && (
+                <div className="space-y-6">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-900/50 flex gap-4">
+                    <FileSpreadsheet className="text-blue-500 shrink-0" />
+                    <div>
+                      <h4 className="font-semibold text-blue-800 dark:text-blue-300">Data Format Requirements</h4>
+                      <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                        Ensure all required fields like Staff ID and Employee Name are present. 
+                        Use the standard evaluation condition values (e.g., "60-40 (Direct Supervisor 60% + Supporter 40%)") 
+                        to automatically map to the correct workflow.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <button onClick={handleDownloadTemplate} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400 font-bold hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors">
+                    <Download size={18} /> Download Excel Template
+                  </button>
+                  
+                  <div className="relative">
+                    <input 
+                      type="file" 
+                      accept=".xlsx, .xls, .csv" 
+                      ref={fileInputRef}
+                      onChange={handleFileUpload}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                    />
+                    <div className="w-full flex items-center justify-center gap-2 py-4 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-colors shadow-sm">
+                      <Upload size={20} /> Browse & Select File to Import
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {importStatus === 'processing' && (
+                <div className="h-full flex flex-col items-center justify-center space-y-4 py-12">
+                  <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                  <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300">Processing Data...</h3>
+                  <p className="text-slate-500">Please wait while we validate and import your records.</p>
+                </div>
+              )}
+              
+              {importStatus === 'summary' && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
+                      <div className="text-3xl font-black text-slate-800 dark:text-slate-100">{importSummary.total}</div>
+                      <div className="text-sm font-medium text-slate-500 uppercase tracking-wider mt-1">Total Rows</div>
+                    </div>
+                    <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl border border-emerald-200 dark:border-emerald-900/50 text-center">
+                      <div className="text-3xl font-black text-emerald-600 dark:text-emerald-400">{importSummary.success}</div>
+                      <div className="text-sm font-medium text-emerald-600 dark:text-emerald-500 uppercase tracking-wider mt-1">Successful</div>
+                    </div>
+                    <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-xl border border-red-200 dark:border-red-900/50 text-center">
+                      <div className="text-3xl font-black text-red-600 dark:text-red-400">{importSummary.failed}</div>
+                      <div className="text-sm font-medium text-red-600 dark:text-red-500 uppercase tracking-wider mt-1">Failed</div>
+                    </div>
+                  </div>
+                  
+                  {importSummary.errors.length > 0 && (
+                    <div className="mt-6">
+                      <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-3">Validation Errors</h3>
+                      <div className="border border-red-200 dark:border-red-900/50 rounded-xl overflow-hidden">
+                        <table className="w-full text-left text-sm text-slate-600 dark:text-slate-400">
+                          <thead className="bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-semibold">
+                            <tr>
+                              <th className="px-4 py-2">Row</th>
+                              <th className="px-4 py-2">Staff ID</th>
+                              <th className="px-4 py-2">Error Message</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-red-100 dark:divide-red-900/30">
+                            {importSummary.errors.map((err, idx) => (
+                              <tr key={idx} className="bg-white dark:bg-slate-800">
+                                <td className="px-4 py-2 font-medium">{err.row}</td>
+                                <td className="px-4 py-2">{err.id}</td>
+                                <td className="px-4 py-2 text-red-600 dark:text-red-400">{err.message}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+            
+            {importStatus === 'summary' && (
+              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
+                <button onClick={() => setImportStatus('idle')} className="px-4 py-2 rounded-xl font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20">
+                  Import Another File
+                </button>
+                <button onClick={() => { setIsImportModalOpen(false); setImportStatus('idle'); }} className="px-4 py-2 rounded-xl font-bold bg-slate-800 text-white hover:bg-slate-700">
+                  Done
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
