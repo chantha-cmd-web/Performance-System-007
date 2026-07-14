@@ -1,327 +1,479 @@
 import { apiFetch } from '../mockApi';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useSettings, EvaluationConfig, Criterion, EvaluationType, WeightingScheme } from '../hooks/useSettings';
-import { Save, Plus, Trash2, Settings, List, PlusCircle } from 'lucide-react';
+import { useDynamicCriteria, EvaluationSection, EvaluationCriterion, PREDEFINED_POSITIONS } from '../hooks/useSettings';
+import { Save, Plus, Trash2, Settings, List, PlusCircle, Check, HelpCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function CriteriaManagement() {
-  const { config, loading, saveSettings } = useSettings();
-  const [activeTab, setActiveTab] = useState<'types' | 'weighting' | 'criteria'>('criteria');
-  const [selectedType, setSelectedType] = useState<string>('management');
+  const { user } = useAuth();
+  const { sections, criteria, loading, saveAll } = useDynamicCriteria();
+
+  const [localSections, setLocalSections] = useState<EvaluationSection[]>([]);
+  const [localCriteria, setLocalCriteria] = useState<EvaluationCriterion[]>([]);
+  const [selectedSectionId, setSelectedSectionId] = useState<string>('');
   const [saving, setSaving] = useState(false);
-  const [localConfig, setLocalConfig] = useState<EvaluationConfig | null>(null);
-  const [promptDialog, setPromptDialog] = useState<{ isOpen: boolean, type: 'type' | 'weighting', value: string, title: string, placeholder: string }>({ isOpen: false, type: 'type', value: '', title: '', placeholder: '' });
 
-  React.useEffect(() => {
-    if (config) setLocalConfig(JSON.parse(JSON.stringify(config)));
-  }, [config]);
+  // Form states for Section editing/adding
+  const [isEditingSection, setIsEditingSection] = useState(false);
+  const [editingSection, setEditingSection] = useState<Partial<EvaluationSection>>({});
 
-  React.useEffect(() => {
-    if (localConfig && localConfig.types && localConfig.types.length > 0) {
-      if (!localConfig.types.some(t => t.id === selectedType)) {
-        setSelectedType(localConfig.types[0].id);
+  // Form states for Criterion editing/adding
+  const [isEditingCriterion, setIsEditingCriterion] = useState(false);
+  const [editingCriterion, setEditingCriterion] = useState<Partial<EvaluationCriterion>>({});
+
+  useEffect(() => {
+    if (sections && sections.length > 0) {
+      setLocalSections(JSON.parse(JSON.stringify(sections)));
+      if (!selectedSectionId) {
+        setSelectedSectionId(sections[0].id);
       }
     }
-  }, [localConfig, selectedType]);
+  }, [sections]);
 
-  if (loading || !localConfig) {
-    return <div className="p-12 text-center font-bold text-slate-500">Loading Configuration...</div>;
+  useEffect(() => {
+    if (criteria) {
+      setLocalCriteria(JSON.parse(JSON.stringify(criteria)));
+    }
+  }, [criteria]);
+
+  if (loading) {
+    return <div className="p-12 text-center font-bold text-slate-500 dark:text-slate-400">Loading Configuration...</div>;
   }
 
   const handleSave = async () => {
     setSaving(true);
-    const success = await saveSettings(localConfig);
+    const success = await saveAll(localSections, localCriteria);
     setSaving(false);
     if (success) {
-      // Show a temporary success message instead of alert
-      const msg = document.createElement('div');
-      msg.className = 'fixed bottom-4 right-4 bg-emerald-600 text-white px-6 py-3 rounded-xl shadow-lg z-50 font-bold';
-      msg.textContent = 'Settings saved successfully!';
-      document.body.appendChild(msg);
-      setTimeout(() => msg.remove(), 3000);
+      toast.success('Configuration saved successfully!');
     } else {
-      const msg = document.createElement('div');
-      msg.className = 'fixed bottom-4 right-4 bg-red-600 text-white px-6 py-3 rounded-xl shadow-lg z-50 font-bold';
-      msg.textContent = 'Error saving settings.';
-      document.body.appendChild(msg);
-      setTimeout(() => msg.remove(), 3000);
+      toast.error('Failed to save configuration.');
     }
   };
 
-  const openAddType = () => {
-    setPromptDialog({ isOpen: true, type: 'type', value: '', title: 'Add Evaluation Type', placeholder: 'Enter a short ID (e.g. finance)' });
+  const handleAddSection = () => {
+    const id = 'sec_' + Date.now();
+    const newSec: EvaluationSection = {
+      id,
+      nameKh: 'ផ្នែកថ្មី',
+      nameEn: 'New Section',
+      weight: 10,
+      order: localSections.length + 1,
+      status: 'Active',
+      positions: [...PREDEFINED_POSITIONS]
+    };
+    setLocalSections([...localSections, newSec]);
+    setSelectedSectionId(id);
+    toast.success('Section added! Fill details and save.');
   };
 
-  const openAddWeighting = () => {
-    setPromptDialog({ isOpen: true, type: 'weighting', value: '', title: 'Add Weighting Scheme', placeholder: 'Enter a short ID (e.g. central_50)' });
-  };
-
-  const handlePromptSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const id = promptDialog.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
-    if (!id) return;
-
-    if (promptDialog.type === 'type') {
-      if (localConfig.types.find(t => t.id === id)) return; // Prevent duplicate
-      setLocalConfig({
-        ...localConfig,
-        types: [...localConfig.types, { id, label: `New Type (${id})` }],
-        criteriaSets: { ...localConfig.criteriaSets, [id]: [] }
-      });
-      setSelectedType(id);
-    } else {
-      if (localConfig.weightingSchemes.find(w => w.id === id)) return; // Prevent duplicate
-      setLocalConfig({
-        ...localConfig,
-        weightingSchemes: [...localConfig.weightingSchemes, { id, label: `New Scheme (${id})` }]
-      });
-    }
-    setPromptDialog({ ...promptDialog, isOpen: false });
-  };
-
-  const updateType = (idx: number, label: string) => {
-    const newTypes = [...localConfig.types];
-    newTypes[idx].label = label;
-    setLocalConfig({ ...localConfig, types: newTypes });
-  };
-
-  const deleteType = (idx: number) => {
-    const typeId = localConfig.types[idx].id;
-    if (confirm(`Delete ${typeId}? This removes all its criteria.`)) {
-      const newTypes = localConfig.types.filter((_, i) => i !== idx);
-      const newSets = { ...localConfig.criteriaSets };
-      delete newSets[typeId];
-      setLocalConfig({ ...localConfig, types: newTypes, criteriaSets: newSets });
-      if (selectedType === typeId) setSelectedType(newTypes[0]?.id || '');
+  const handleDeleteSection = (id: string) => {
+    if (confirm('Are you sure you want to delete this section and all of its criteria?')) {
+      const newSecs = localSections.filter(s => s.id !== id);
+      const newCrits = localCriteria.filter(c => c.sectionId !== id);
+      setLocalSections(newSecs);
+      setLocalCriteria(newCrits);
+      if (selectedSectionId === id) {
+        setSelectedSectionId(newSecs[0]?.id || '');
+      }
+      toast.success('Section deleted');
     }
   };
 
-  const updateWeighting = (idx: number, label: string) => {
-    const newSchemes = [...localConfig.weightingSchemes];
-    newSchemes[idx].label = label;
-    setLocalConfig({ ...localConfig, weightingSchemes: newSchemes });
-  };
-
-  const deleteWeighting = (idx: number) => {
-    if (confirm('Delete this weighting scheme?')) {
-      const newSchemes = localConfig.weightingSchemes.filter((_, i) => i !== idx);
-      setLocalConfig({ ...localConfig, weightingSchemes: newSchemes });
-    }
-  };
-
-  const addCriterion = () => {
-    if (!selectedType) {
-      alert("Please add or select an Evaluation Type first.");
+  const handleAddCriterion = () => {
+    if (!selectedSectionId) {
+      toast.error('Please select or create a Section first.');
       return;
     }
-    const newSets = { ...localConfig.criteriaSets };
-    newSets[selectedType] = [
-      ...(newSets[selectedType] || []),
-      { id: Date.now(), kh: 'លក្ខណៈថ្មី', khDesc: 'ការពិពណ៌នាថ្មី', en: 'New Criteria', desc: 'New Description', max: 10 }
-    ];
-    setLocalConfig({ ...localConfig, criteriaSets: newSets });
+    const id = 'crit_' + Date.now();
+    const newCrit: EvaluationCriterion = {
+      id,
+      nameKh: 'លក្ខណៈវិនិច្ឆ័យថ្មី',
+      nameEn: 'New Criterion',
+      sectionId: selectedSectionId,
+      positions: [...PREDEFINED_POSITIONS],
+      maxScore: 10,
+      order: localCriteria.filter(c => c.sectionId === selectedSectionId).length + 1,
+      status: 'Active'
+    };
+    setLocalCriteria([...localCriteria, newCrit]);
+    toast.success('Criterion added! Edit its fields and save.');
   };
 
-  const updateCriterion = (idx: number, field: keyof Criterion, val: string | number) => {
-    const newSets = { ...localConfig.criteriaSets };
-    const newArr = [...(newSets[selectedType] || [])];
-    newArr[idx] = { ...newArr[idx], [field]: val };
-    newSets[selectedType] = newArr;
-    setLocalConfig({ ...localConfig, criteriaSets: newSets });
+  const handleDeleteCriterion = (id: string) => {
+    if (confirm('Are you sure you want to delete this criterion?')) {
+      setLocalCriteria(localCriteria.filter(c => c.id !== id));
+      toast.success('Criterion deleted');
+    }
   };
 
-  const deleteCriterion = (idx: number) => {
-    const newSets = { ...localConfig.criteriaSets };
-    newSets[selectedType] = newSets[selectedType].filter((_, i) => i !== idx);
-    setLocalConfig({ ...localConfig, criteriaSets: newSets });
+  const updateSectionField = (secId: string, field: keyof EvaluationSection, value: any) => {
+    setLocalSections(localSections.map(s => s.id === secId ? { ...s, [field]: value } : s));
   };
+
+  const updateCriterionField = (critId: string, field: keyof EvaluationCriterion, value: any) => {
+    setLocalCriteria(localCriteria.map(c => c.id === critId ? { ...c, [field]: value } : c));
+  };
+
+  const toggleSectionPosition = (secId: string, pos: string) => {
+    const sec = localSections.find(s => s.id === secId);
+    if (!sec) return;
+    const isAssigned = sec.positions.includes(pos);
+    const newPositions = isAssigned 
+      ? sec.positions.filter(p => p !== pos)
+      : [...sec.positions, pos];
+    updateSectionField(secId, 'positions', newPositions);
+  };
+
+  const toggleCriterionPosition = (critId: string, pos: string) => {
+    const crit = localCriteria.find(c => c.id === critId);
+    if (!crit) return;
+    const isAssigned = crit.positions.includes(pos);
+    const newPositions = isAssigned 
+      ? crit.positions.filter(p => p !== pos)
+      : [...crit.positions, pos];
+    updateCriterionField(critId, 'positions', newPositions);
+  };
+
+  const selectedSection = localSections.find(s => s.id === selectedSectionId);
+  const currentSectionCriteria = localCriteria.filter(c => c.sectionId === selectedSectionId);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="max-w-7xl mx-auto space-y-8">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tight">System Configuration</h1>
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">Manage Evaluation Criteria, Weighting & Evaluators / រៀបចំលក្ខណៈវិនិច្ឆ័យ</p>
+          <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tight">
+            រៀបចំផ្នែក និងលក្ខណៈវិនិច្ឆ័យវាយតម្លៃ
+          </h1>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">
+            Dynamic Sections & Criteria Management (Super Administrator)
+          </p>
         </div>
         <button 
           onClick={handleSave} 
           disabled={saving}
           className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-colors active:scale-95 disabled:opacity-50"
+          id="btn-save-criteria-config"
         >
           <Save size={18} />
           {saving ? 'Saving...' : 'Save Configuration'}
         </button>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="flex overflow-x-auto border-b border-slate-100 dark:border-slate-700 p-2 gap-2 bg-slate-50 dark:bg-slate-900/50">
-          <TabButton active={activeTab === 'types'} onClick={() => setActiveTab('types')} icon={<List size={18}/>} label="Evaluation Types" />
-          <TabButton active={activeTab === 'weighting'} onClick={() => setActiveTab('weighting')} icon={<Settings size={18}/>} label="Weighting Schemes" />
-          <TabButton active={activeTab === 'criteria'} onClick={() => setActiveTab('criteria')} icon={<PlusCircle size={18}/>} label="Criteria Sets" />
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Sections Sidebar (4 cols) */}
+        <div className="lg:col-span-5 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col">
+          <div className="p-5 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex justify-between items-center">
+            <div>
+              <h2 className="font-extrabold text-slate-800 dark:text-slate-100 text-base">ផ្នែកវាយតម្លៃ / Evaluation Sections</h2>
+              <p className="text-xs text-slate-400 font-medium mt-0.5">Manage evaluation blocks and weightings</p>
+            </div>
+            <button 
+              onClick={handleAddSection} 
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 font-bold text-xs rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-500/20"
+              id="btn-add-section"
+            >
+              <Plus size={14} /> Add Section
+            </button>
+          </div>
+
+          <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
+            {localSections.map((sec) => (
+              <div 
+                key={sec.id}
+                onClick={() => setSelectedSectionId(sec.id)}
+                className={`p-4 rounded-xl cursor-pointer transition-all border ${
+                  selectedSectionId === sec.id 
+                    ? 'bg-indigo-50/50 dark:bg-indigo-500/5 border-indigo-200 dark:border-indigo-500/30' 
+                    : 'border-transparent hover:bg-slate-50/50 dark:hover:bg-slate-700/20'
+                }`}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Section Order {sec.order}</span>
+                    <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">{sec.nameKh}</h3>
+                    <h4 className="text-xs text-slate-500 dark:text-slate-400 font-medium">{sec.nameEn}</h4>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${sec.status === 'Active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-500/10'}`}>
+                      {sec.status}
+                    </span>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleDeleteSection(sec.id); }} 
+                      className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded transition-colors"
+                      id={`btn-delete-section-${sec.id}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Weights and Positions summary */}
+                <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                  <div className="bg-slate-100 dark:bg-slate-700 px-2.5 py-1 rounded-lg font-bold text-slate-700 dark:text-slate-300">
+                    Weight: {sec.weight}%
+                  </div>
+                  <div>
+                    Positions: <span className="font-bold text-slate-700 dark:text-slate-300">{sec.positions.length} selected</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {localSections.length === 0 && (
+              <div className="p-8 text-center text-slate-400 text-sm font-medium">No sections found. Click Add to create one.</div>
+            )}
+          </div>
         </div>
 
-        <div className="p-8">
-          {activeTab === 'types' && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Evaluation Types / ប្រភេទវាយតម្លៃ</h3>
-                <button onClick={openAddType} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 font-bold text-sm rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors">
-                  <Plus size={16} /> Add Type
-                </button>
-              </div>
-              <div className="space-y-4">
-                {localConfig.types.map((t, i) => (
-                  <div key={t.id} className="flex items-center gap-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-xl">
-                    <div className="w-48 font-mono text-xs font-bold text-slate-400 dark:text-slate-500 p-2 bg-slate-50 dark:bg-slate-900 rounded-lg">{t.id}</div>
+        {/* Section Editor & Criteria list (7 cols) */}
+        <div className="lg:col-span-7 space-y-6">
+          {selectedSection ? (
+            <>
+              {/* Section Editor Card */}
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+                <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-base mb-6 border-b border-slate-100 dark:border-slate-700 pb-3">
+                  កែប្រែព័ត៌មានផ្នែក / Edit Section Details
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Khmer Section Name</label>
                     <input 
-                      className="flex-1 px-4 py-2 bg-transparent border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-slate-900 dark:text-slate-100 placeholder-slate-400"
-                      value={t.label} onChange={e => updateType(i, e.target.value)} placeholder="Type Name"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={selectedSection.nameKh} 
+                      onChange={e => updateSectionField(selectedSection.id, 'nameKh', e.target.value)} 
                     />
-                    <button onClick={() => deleteType(i)} className="p-2 text-red-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 size={18}/></button>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'weighting' && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Weighting Schemes / របៀបគណនា</h3>
-                <button onClick={openAddWeighting} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 font-bold text-sm rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors">
-                  <Plus size={16} /> Add Scheme
-                </button>
-              </div>
-              <div className="space-y-4">
-                {localConfig.weightingSchemes.map((s, i) => (
-                  <div key={s.id} className="flex items-center gap-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-xl">
-                    <div className="w-48 font-mono text-xs font-bold text-slate-400 dark:text-slate-500 p-2 bg-slate-50 dark:bg-slate-900 rounded-lg">{s.id}</div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">English Section Name</label>
                     <input 
-                      className="flex-1 px-4 py-2 bg-transparent border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-slate-900 dark:text-slate-100 placeholder-slate-400"
-                      value={s.label} onChange={e => updateWeighting(i, e.target.value)} placeholder="Scheme Label"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={selectedSection.nameEn} 
+                      onChange={e => updateSectionField(selectedSection.id, 'nameEn', e.target.value)} 
                     />
-                    <button onClick={() => deleteWeighting(i)} className="p-2 text-red-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 size={18}/></button>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Weight (%)</label>
+                    <input 
+                      type="number"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={selectedSection.weight} 
+                      onChange={e => updateSectionField(selectedSection.id, 'weight', Number(e.target.value))} 
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Display Order</label>
+                      <input 
+                        type="number"
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500"
+                        value={selectedSection.order} 
+                        onChange={e => updateSectionField(selectedSection.id, 'order', Number(e.target.value))} 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Status</label>
+                      <select 
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500"
+                        value={selectedSection.status} 
+                        onChange={e => updateSectionField(selectedSection.id, 'status', e.target.value as any)}
+                      >
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
 
-          {activeTab === 'criteria' && (
-            <div className="space-y-8">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-                <label className="font-bold text-slate-700 dark:text-slate-300">Select Type to Edit:</label>
-                <select 
-                  className="flex-1 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900 dark:text-slate-100 outline-none"
-                  value={selectedType} onChange={e => setSelectedType(e.target.value)}
-                >
-                  {localConfig.types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                </select>
-                <button onClick={addCriterion} className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white font-bold text-sm rounded-lg hover:bg-indigo-700 transition-colors">
-                  <Plus size={16} /> Add Criterion
-                </button>
+                {/* Section Position selection */}
+                <div className="mt-6 border-t border-slate-100 dark:border-slate-700 pt-5">
+                  <div className="flex justify-between items-center mb-3">
+                    <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                      Assigned Positions / តួនាទីត្រូវបានចាត់តាំង
+                    </label>
+                    <div className="flex gap-2">
+                      <button 
+                        type="button" 
+                        onClick={() => updateSectionField(selectedSection.id, 'positions', [...PREDEFINED_POSITIONS])}
+                        className="text-[10px] font-bold text-indigo-600 hover:underline"
+                      >
+                        Select All
+                      </button>
+                      <span className="text-[10px] text-slate-300">|</span>
+                      <button 
+                        type="button" 
+                        onClick={() => updateSectionField(selectedSection.id, 'positions', [])}
+                        className="text-[10px] font-bold text-rose-500 hover:underline"
+                      >
+                        Deselect All
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    {PREDEFINED_POSITIONS.map(pos => {
+                      const isChecked = selectedSection.positions.includes(pos);
+                      return (
+                        <button
+                          key={pos}
+                          type="button"
+                          onClick={() => toggleSectionPosition(selectedSection.id, pos)}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-left text-xs font-bold transition-all ${
+                            isChecked 
+                              ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-500/10 dark:border-indigo-500/30 dark:text-indigo-400' 
+                              : 'bg-transparent border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
+                          }`}
+                        >
+                          <div className={`w-4 h-4 rounded flex items-center justify-center border ${isChecked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 dark:border-slate-600'}`}>
+                            {isChecked && <Check size={10} />}
+                          </div>
+                          <span className="truncate">{pos}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-6">
-                {(localConfig.criteriaSets[selectedType] || []).map((c, i) => (
-                  <div key={c.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 relative group hover:border-indigo-200 dark:hover:border-indigo-500/50 hover:shadow-sm transition-all">
-                    <button 
-                      onClick={() => deleteCriterion(i)} 
-                      className="absolute top-4 right-4 p-2 text-slate-300 dark:text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
-                    >
-                      <Trash2 size={18}/>
-                    </button>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">ចំណងជើងជាភាសាខ្មែរ<br/><span className="text-[10px] font-normal">Khmer Title</span></label>
-                        <input className="w-full px-4 py-2 bg-transparent border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-slate-900 dark:text-slate-100" value={c.kh} onChange={e => updateCriterion(i, 'kh', e.target.value)} />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">ចំណងជើងជាភាសាអង់គ្លេស<br/><span className="text-[10px] font-normal">English Title</span></label>
-                        <input className="w-full px-4 py-2 bg-transparent border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-slate-900 dark:text-slate-100" value={c.en} onChange={e => updateCriterion(i, 'en', e.target.value)} />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-                      <div className="md:col-span-1">
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">ពិន្ទុអតិបរមា<br/><span className="text-[10px] font-normal">Max Score</span></label>
-                        <input type="number" min="1" max="100" className="w-full px-4 py-2 bg-transparent border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-slate-900 dark:text-slate-100" value={c.max || 10} onChange={e => updateCriterion(i, 'max', parseInt(e.target.value) || 10)} />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">ការពិពណ៌នាជាភាសាខ្មែរ<br/><span className="text-[10px] font-normal">Khmer Description</span></label>
-                        <textarea rows={2} className="w-full px-4 py-2 bg-transparent border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-sm text-slate-600 dark:text-slate-300 resize-none" value={c.khDesc} onChange={e => updateCriterion(i, 'khDesc', e.target.value)} />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">ការពិពណ៌នាជាភាសាអង់គ្លេស<br/><span className="text-[10px] font-normal">English Description</span></label>
-                        <textarea rows={2} className="w-full px-4 py-2 bg-transparent border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-sm text-slate-600 dark:text-slate-300 resize-none" value={c.desc} onChange={e => updateCriterion(i, 'desc', e.target.value)} />
-                      </div>
-                    </div>
+              {/* Criteria List for Selected Section */}
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <div className="p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-base">លក្ខណៈវិនិច្ឆ័យក្នុងផ្នែកនេះ / Section Criteria</h3>
+                    <p className="text-xs text-slate-400 font-medium mt-0.5">Manage score metrics within this section block</p>
                   </div>
-                ))}
-                {(localConfig.criteriaSets[selectedType] || []).length === 0 && (
-                  <div className="text-center py-12 text-slate-400 dark:text-slate-500 font-medium border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-                    No criteria defined for this type.
-                  </div>
-                )}
+                  <button 
+                    onClick={handleAddCriterion} 
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 font-bold text-xs rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-500/20"
+                    id="btn-add-criterion"
+                  >
+                    <Plus size={14} /> Add Criterion
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                  {currentSectionCriteria.map((crit) => (
+                    <div key={crit.id} className="p-5 rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/20 dark:bg-slate-900/10 space-y-4">
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wide mb-1">Criterion Name (Khmer)</label>
+                            <input 
+                              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-none"
+                              value={crit.nameKh} 
+                              onChange={e => updateCriterionField(crit.id, 'nameKh', e.target.value)} 
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wide mb-1">Criterion Name (English)</label>
+                            <input 
+                              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-none"
+                              value={crit.nameEn} 
+                              onChange={e => updateCriterionField(crit.id, 'nameEn', e.target.value)} 
+                            />
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => handleDeleteCriterion(crit.id)}
+                          className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                          id={`btn-delete-criterion-${crit.id}`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wide mb-1">Max Score</label>
+                          <input 
+                            type="number"
+                            className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-none"
+                            value={crit.maxScore} 
+                            onChange={e => updateCriterionField(crit.id, 'maxScore', Number(e.target.value))} 
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wide mb-1">Display Order</label>
+                          <input 
+                            type="number"
+                            className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-none"
+                            value={crit.order} 
+                            onChange={e => updateCriterionField(crit.id, 'order', Number(e.target.value))} 
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wide mb-1">Status</label>
+                          <select 
+                            className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-none"
+                            value={crit.status} 
+                            onChange={e => updateCriterionField(crit.id, 'status', e.target.value as any)}
+                          >
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Position selection for single criterion */}
+                      <div className="border-t border-slate-100 dark:border-slate-700/50 pt-3">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-[10px] font-extrabold text-slate-500 uppercase">Criterion Positions</span>
+                          <div className="flex gap-2">
+                            <button 
+                              type="button" 
+                              onClick={() => updateCriterionField(crit.id, 'positions', [...PREDEFINED_POSITIONS])}
+                              className="text-[9px] font-bold text-indigo-600 hover:underline"
+                            >
+                              Select All
+                            </button>
+                            <span className="text-[9px] text-slate-300">|</span>
+                            <button 
+                              type="button" 
+                              onClick={() => updateCriterionField(crit.id, 'positions', [])}
+                              className="text-[9px] font-bold text-rose-500 hover:underline"
+                            >
+                              Deselect All
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {PREDEFINED_POSITIONS.map(p => {
+                            const active = crit.positions.includes(p);
+                            return (
+                              <button
+                                key={p}
+                                type="button"
+                                onClick={() => toggleCriterionPosition(crit.id, p)}
+                                className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${
+                                  active 
+                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-500/10 dark:border-indigo-500/30 dark:text-indigo-400' 
+                                    : 'bg-transparent border-slate-200 dark:border-slate-700 text-slate-400 hover:bg-slate-100'
+                                }`}
+                              >
+                                {p}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {currentSectionCriteria.length === 0 && (
+                    <div className="p-8 text-center text-slate-400 text-sm font-medium">No criteria in this section. Click Add Criterion to start.</div>
+                  )}
+                </div>
               </div>
+            </>
+          ) : (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-12 text-center text-slate-400 font-bold h-64 flex items-center justify-center">
+              Select or create an evaluation section from the left sidebar.
             </div>
           )}
         </div>
       </div>
-
-      {promptDialog.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 w-full max-w-md overflow-hidden">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-700">
-              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">{promptDialog.title}</h2>
-            </div>
-            <form onSubmit={handlePromptSubmit} className="p-6 space-y-6">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Identifier</label>
-                <input
-                  autoFocus
-                  type="text"
-                  required
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-500 font-medium text-slate-800 dark:text-slate-100 outline-none transition-all"
-                  placeholder={promptDialog.placeholder}
-                  value={promptDialog.value}
-                  onChange={e => setPromptDialog({ ...promptDialog, value: e.target.value })}
-                />
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Use lowercase letters, numbers, and underscores only.</p>
-              </div>
-              <div className="flex gap-4">
-                <button
-                  type="button"
-                  onClick={() => setPromptDialog({ ...promptDialog, isOpen: false })}
-                  className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors"
-                >
-                  Add
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
-  );
-}
-
-function TabButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
-  return (
-    <button 
-      onClick={onClick}
-      className={`flex items-center gap-2 px-6 py-3 rounded-lg font-bold text-sm transition-all ${active ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 shadow-sm border border-slate-200 dark:border-slate-600' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-    >
-      {icon}
-      {label}
-    </button>
   );
 }

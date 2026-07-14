@@ -4,7 +4,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { Menu, X, LayoutDashboard, FileEdit, Users, LogOut, Settings, Sun, Moon, ShieldAlert } from 'lucide-react';
+import { Menu, X, LayoutDashboard, FileEdit, FileText, Users, LogOut, Settings, Sun, Moon, ShieldAlert } from 'lucide-react';
 import { cn } from '../lib/utils';
 import NotificationsBell from './NotificationsBell';
 
@@ -93,6 +93,19 @@ export default function Layout() {
             <span>New Evaluation</span>
           </NavLink>
 
+          <NavLink
+            to="/self-evaluation"
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all whitespace-nowrap",
+                isActive ? "bg-indigo-500/10 text-indigo-400" : "text-slate-400 hover:bg-white/5 hover:text-white"
+              )
+            }
+          >
+            <FileText size={20} />
+            <span>Self-Evaluation</span>
+          </NavLink>
+
           {user.role === 'superadmin' && (
             <>
               <NavLink
@@ -146,7 +159,7 @@ export default function Layout() {
                 }
               >
                 <FileEdit size={20} />
-                <span>Self Evaluation</span>
+                <span>Self-Eval Profiles</span>
               </NavLink>
               
               <NavLink

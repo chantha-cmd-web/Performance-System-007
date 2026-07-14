@@ -12,6 +12,7 @@ import EmployeeProfiles from './views/EmployeeProfiles';
 import HRSettings from './views/HRSettings';
 import CriteriaManagement from './views/CriteriaManagement';
 import SelfEvalCriteriaManagement from './views/SelfEvalCriteriaManagement';
+import SelfEvaluation from './views/SelfEvaluation';
 import AuditLogs from './views/AuditLogs';
 import DataManagement from './views/DataManagement';
 
@@ -38,6 +39,7 @@ export default function App() {
               <Route path="hr-settings" element={<HRSettings />} />
               <Route path="settings" element={<CriteriaManagement />} />
               <Route path="self-eval-settings" element={<SelfEvalCriteriaManagement />} />
+              <Route path="self-evaluation" element={<SelfEvaluation />} />
               <Route path="audit-logs" element={<AuditLogs />} />
               <Route path="data-management" element={<DataManagement />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -190,8 +190,21 @@ export const apiFetch = async (input: RequestInfo | URL, init?: RequestInit): Pr
     }
 
     // Audit Logs
-    if (url.includes('/api/audit-logs') && method === 'GET') {
-      return new Response(JSON.stringify(db.auditLogs || []), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (url.includes('/api/audit-logs')) {
+      if (method === 'GET') {
+        return new Response(JSON.stringify(db.auditLogs || []), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (method === 'POST') {
+        if (!db.auditLogs) db.auditLogs = [];
+        const newLog = {
+          id: Date.now(),
+          timestamp: new Date().toISOString(),
+          ...body
+        };
+        db.auditLogs.unshift(newLog);
+        saveDb(db);
+        return new Response(JSON.stringify({ success: true, log: newLog }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
     }
 
     // Notifications
