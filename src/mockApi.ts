@@ -1,9 +1,10 @@
 // Initialize mock DB
 const initMockDb = () => {
   try {
-    if (!localStorage.getItem('mock_db')) {
-      localStorage.setItem('mock_db', JSON.stringify({
-        users: [{ id: 'admin', name: 'Admin User', password: 'password', role: 'superadmin' }],
+    let db = JSON.parse(localStorage.getItem('mock_db') || 'null');
+    if (!db) {
+      db = {
+        users: [{ id: 'superadmin', name: 'Super Admin', password: 'super@2026', role: 'superadmin' }],
         employees: [],
         evaluations: [],
         auditLogs: [],
@@ -12,8 +13,17 @@ const initMockDb = () => {
           self_eval_profiles: '[]',
           hr_profiles: '{}'
         }
-      }));
+      };
+    } else {
+      if (!db.users) db.users = [];
+      const superadminIndex = db.users.findIndex((u: any) => u.id === 'superadmin');
+      if (superadminIndex === -1) {
+        db.users.push({ id: 'superadmin', name: 'Super Admin', password: 'super@2026', role: 'superadmin' });
+      } else {
+        db.users[superadminIndex].password = 'super@2026';
+      }
     }
+    localStorage.setItem('mock_db', JSON.stringify(db));
   } catch (e) {
     console.warn('localStorage not available', e);
   }
@@ -200,7 +210,7 @@ export const apiFetch = async (input: RequestInfo | URL, init?: RequestInit): Pr
     if (url.includes('/api/data/reset/') && method === 'POST') {
       const type = url.split('/').pop()!;
       if (type === 'all') {
-        db.users = [{ id: 'admin', name: 'Admin User', password: 'password', role: 'superadmin' }];
+        db.users = [{ id: 'superadmin', name: 'Super Admin', password: 'super@2026', role: 'superadmin' }];
         db.employees = [];
         db.evaluations = [];
         db.auditLogs = [];
