@@ -86,7 +86,7 @@ export default function Login() {
         initial={{ opacity: 0, y: 30, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.8, ease: [0.34, 1.56, 0.64, 1] }}
-        className={`relative z-10 w-full max-w-[420px] p-10 backdrop-blur-2xl border shadow-2xl rounded-3xl overflow-hidden transition-colors duration-1000 ${
+        className={`relative z-10 w-full max-w-[420px] p-6 sm:p-10 backdrop-blur-2xl border shadow-2xl rounded-3xl overflow-hidden transition-colors duration-1000 ${
           isDark 
             ? 'bg-white/10 border-white/20 shadow-indigo-500/10' 
             : 'bg-white/60 border-white/50 shadow-slate-200/50'

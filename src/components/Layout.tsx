@@ -12,10 +12,33 @@ export default function Layout() {
   const { token, user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [isOpen, setIsOpen] = useState(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      return false;
+    }
     const saved = localStorage.getItem('sidebar_state');
     return saved !== null ? JSON.parse(saved) : true;
   });
   const [assignedCount, setAssignedCount] = useState({ selfEval: 0, pendingReview: 0 });
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) {
+        setIsOpen(false);
+      }
+    };
+    
+    // Check once on mount
+    handleResize();
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const closeOnMobile = () => {
+    if (window.innerWidth < 1024) {
+      setIsOpen(false);
+    }
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -105,6 +128,7 @@ export default function Layout() {
         <nav className="flex-1 space-y-1 px-4 py-4 overflow-y-auto">
           <NavLink
             to="/dashboard"
+            onClick={closeOnMobile}
             className={({ isActive }) =>
               cn(
                 "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition-all whitespace-nowrap",
@@ -125,6 +149,7 @@ export default function Layout() {
           
           <NavLink
             to="/evaluation"
+            onClick={closeOnMobile}
             className={({ isActive }) =>
               cn(
                 "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all whitespace-nowrap",
@@ -138,6 +163,7 @@ export default function Layout() {
 
           <NavLink
             to="/self-evaluation"
+            onClick={closeOnMobile}
             className={({ isActive }) =>
               cn(
                 "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition-all whitespace-nowrap",
@@ -160,6 +186,7 @@ export default function Layout() {
             <>
               <NavLink
                 to="/employees"
+                onClick={closeOnMobile}
                 className={({ isActive }) =>
                   cn(
                     "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all whitespace-nowrap",
@@ -175,6 +202,7 @@ export default function Layout() {
 
               <NavLink
                 to="/users"
+                onClick={closeOnMobile}
                 className={({ isActive }) =>
                   cn(
                     "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all whitespace-nowrap",
@@ -188,6 +216,7 @@ export default function Layout() {
               
               <NavLink
                 to="/settings"
+                onClick={closeOnMobile}
                 className={({ isActive }) =>
                   cn(
                     "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all whitespace-nowrap",
@@ -203,6 +232,7 @@ export default function Layout() {
 
               <NavLink
                 to="/data-management"
+                onClick={closeOnMobile}
                 className={({ isActive }) =>
                   cn(
                     "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all whitespace-nowrap",
@@ -218,6 +248,7 @@ export default function Layout() {
 
               <NavLink
                 to="/audit-logs"
+                onClick={closeOnMobile}
                 className={({ isActive }) =>
                   cn(
                     "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all whitespace-nowrap",
