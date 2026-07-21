@@ -116,8 +116,8 @@ export default function EmployeeProfiles() {
             continue;
           }
           
-          if (existingIds.has(staffId) || newIdsInImport.has(staffId)) {
-            errors.push({ row: rowNum, id: staffId, message: 'Duplicate Staff ID found' });
+          if (newIdsInImport.has(staffId)) {
+            errors.push({ row: rowNum, id: staffId, message: 'Duplicate Staff ID in spreadsheet' });
             failedCount++;
             continue;
           }

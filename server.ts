@@ -31,8 +31,11 @@ db.exec(`
     category TEXT,
     supervisorId TEXT,
     supporterId TEXT,
+    managementId TEXT,
+    evalCondition TEXT,
     evalModel TEXT,
-    evalPeriod TEXT
+    evalPeriod TEXT,
+    status TEXT DEFAULT 'Active'
   );
 
   CREATE TABLE IF NOT EXISTS evaluations (
@@ -103,6 +106,9 @@ try { db.exec('ALTER TABLE evaluations ADD COLUMN status TEXT DEFAULT "Draft"');
 try { db.exec('ALTER TABLE evaluations ADD COLUMN department TEXT'); } catch(e) {}
 try { db.exec('ALTER TABLE evaluations ADD COLUMN evalPeriod TEXT'); } catch(e) {}
 try { db.exec('ALTER TABLE evaluations ADD COLUMN supporter TEXT'); } catch(e) {}
+try { db.exec('ALTER TABLE employees ADD COLUMN managementId TEXT'); } catch(e) {}
+try { db.exec('ALTER TABLE employees ADD COLUMN evalCondition TEXT'); } catch(e) {}
+try { db.exec('ALTER TABLE employees ADD COLUMN status TEXT DEFAULT "Active"'); } catch(e) {}
 
 // Seed Default Users if not exist
 const seedUsers = () => {
@@ -676,8 +682,8 @@ app.post('/api/employees', authenticateToken, requireSuperAdmin, (req, res) => {
   const data = req.body;
   try {
     const insertEmp = db.prepare(`
-      INSERT OR REPLACE INTO employees (id, name, khmerName, campus, department, position, category, supervisorId, supporterId, evalModel, evalPeriod)
-      VALUES (@id, @name, @khmerName, @campus, @department, @position, @category, @supervisorId, @supporterId, @evalModel, @evalPeriod)
+      INSERT OR REPLACE INTO employees (id, name, khmerName, campus, department, position, category, supervisorId, supporterId, managementId, evalCondition, evalModel, evalPeriod, status)
+      VALUES (@id, @name, @khmerName, @campus, @department, @position, @category, @supervisorId, @supporterId, @managementId, @evalCondition, @evalModel, @evalPeriod, @status)
     `);
     insertEmp.run({
         ...data,
@@ -686,9 +692,27 @@ app.post('/api/employees', authenticateToken, requireSuperAdmin, (req, res) => {
         category: data.category || '',
         supervisorId: data.supervisorId || '',
         supporterId: data.supporterId || '',
+        managementId: data.managementId || '',
+        evalCondition: data.evalCondition || '',
         evalModel: data.evalModel || '',
-        evalPeriod: data.evalPeriod || ''
+        evalPeriod: data.evalPeriod || '',
+        status: data.status || 'Active'
     });
+
+    // Auto-create/sync corresponding user profile in the users table so they can log in directly.
+    // Default password is their Staff ID (the employee ID)
+    const existingUser = db.prepare('SELECT id, role FROM users WHERE id = ?').get(data.id) as any;
+    if (!existingUser) {
+      const defaultPasswordHash = bcrypt.hashSync(data.id, 10);
+      db.prepare('INSERT INTO users (id, name, password, role) VALUES (?, ?, ?, ?)').run(data.id, data.name, defaultPasswordHash, 'user');
+      logAudit(req.user!.id, req.user!.name, 'auto_create_user', `Automatically created user account for employee ${data.name} (${data.id})`);
+    } else {
+      // If user exists, sync their name (if they aren't superadmin or admin)
+      if (existingUser.role !== 'superadmin' && existingUser.role !== 'admin') {
+        db.prepare('UPDATE users SET name = ? WHERE id = ?').run(data.name, data.id);
+      }
+    }
+
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -697,7 +721,20 @@ app.post('/api/employees', authenticateToken, requireSuperAdmin, (req, res) => {
 
 app.delete('/api/employees/:id', authenticateToken, requireSuperAdmin, (req, res) => {
   try {
-    db.prepare('DELETE FROM employees WHERE id = ?').run(req.params.id);
+    if (req.params.id === 'all') {
+      db.prepare('DELETE FROM employees').run();
+      // Clean up corresponding user accounts (that are standard 'user' role)
+      db.prepare("DELETE FROM users WHERE role NOT IN ('superadmin', 'admin')").run();
+      logAudit(req.user!.id, req.user!.name, 'reset_employees', 'Reset all employee profiles and associated user accounts');
+    } else {
+      db.prepare('DELETE FROM employees WHERE id = ?').run(req.params.id);
+      // Clean up corresponding user account (as long as it is not superadmin/admin)
+      const existingUser = db.prepare('SELECT role FROM users WHERE id = ?').get(req.params.id) as any;
+      if (existingUser && existingUser.role !== 'superadmin' && existingUser.role !== 'admin') {
+        db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+      }
+      logAudit(req.user!.id, req.user!.name, 'delete_employee', `Deleted employee and associated user (${req.params.id})`);
+    }
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

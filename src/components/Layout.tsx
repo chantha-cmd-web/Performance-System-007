@@ -199,19 +199,8 @@ export default function Layout() {
                 <span>Criteria & Evaluators</span>
               </NavLink>
 
-              <NavLink
-                to="/self-eval-settings"
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all whitespace-nowrap",
-                    isActive ? "bg-indigo-500/10 text-indigo-400" : "text-slate-400 hover:bg-white/5 hover:text-white"
-                  )
-                }
-              >
-                <FileEdit size={20} />
-                <span>Self-Eval Profiles</span>
-              </NavLink>
-              
+
+
               <NavLink
                 to="/data-management"
                 className={({ isActive }) =>
