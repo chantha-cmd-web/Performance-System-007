@@ -9,12 +9,48 @@ import { cn } from '../lib/utils';
 import NotificationsBell from './NotificationsBell';
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { token, user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [isOpen, setIsOpen] = useState(() => {
     const saved = localStorage.getItem('sidebar_state');
     return saved !== null ? JSON.parse(saved) : true;
   });
+  const [assignedCount, setAssignedCount] = useState({ selfEval: 0, pendingReview: 0 });
+
+  useEffect(() => {
+    if (!token) return;
+    
+    const fetchCounts = async () => {
+      try {
+        const res = await apiFetch('/api/notifications', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          let selfEval = 0;
+          let pendingReview = 0;
+          
+          data.forEach((n: any) => {
+            if (n.id === 'self-eval') {
+              const match = n.message.match(/(\d+)/);
+              if (match) selfEval = parseInt(match[1], 10);
+            } else if (n.id === 'super-eval' || n.id === 'supporter-eval') {
+              const match = n.message.match(/(\d+)/);
+              if (match) pendingReview += parseInt(match[1], 10);
+            }
+          });
+          
+          setAssignedCount({ selfEval, pendingReview });
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 30000); // Poll every 30 seconds
+    return () => clearInterval(interval);
+  }, [token]);
 
   useEffect(() => {
     localStorage.setItem('sidebar_state', JSON.stringify(isOpen));
@@ -71,13 +107,20 @@ export default function Layout() {
             to="/dashboard"
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all whitespace-nowrap",
+                "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition-all whitespace-nowrap",
                 isActive ? "bg-indigo-500/10 text-indigo-400" : "text-slate-400 hover:bg-white/5 hover:text-white"
               )
             }
           >
-            <LayoutDashboard size={20} />
-            <span>Dashboard</span>
+            <div className="flex items-center gap-3">
+              <LayoutDashboard size={20} />
+              <span>Dashboard</span>
+            </div>
+            {assignedCount.pendingReview > 0 && (
+              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-500 px-1.5 text-[10px] font-bold text-white shadow-sm ring-2 ring-indigo-500/20 animate-pulse">
+                {assignedCount.pendingReview}
+              </span>
+            )}
           </NavLink>
           
           <NavLink
@@ -97,13 +140,20 @@ export default function Layout() {
             to="/self-evaluation"
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all whitespace-nowrap",
+                "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition-all whitespace-nowrap",
                 isActive ? "bg-indigo-500/10 text-indigo-400" : "text-slate-400 hover:bg-white/5 hover:text-white"
               )
             }
           >
-            <FileText size={20} />
-            <span>Self-Evaluation</span>
+            <div className="flex items-center gap-3">
+              <FileText size={20} />
+              <span>Self-Evaluation</span>
+            </div>
+            {assignedCount.selfEval > 0 && (
+              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white shadow-sm ring-2 ring-rose-500/20 animate-pulse">
+                {assignedCount.selfEval}
+              </span>
+            )}
           </NavLink>
 
           {user.role === 'superadmin' && (
