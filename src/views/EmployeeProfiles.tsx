@@ -134,10 +134,17 @@ export default function EmployeeProfiles() {
             matchedModel = evalConditionMap[rawCondition];
           }
 
+          let parsedRole = String(row['User Role'] || row['Role'] || row['role'] || 'user').trim().toLowerCase();
+          if (!['superadmin', 'admin', 'user'].includes(parsedRole)) {
+            parsedRole = 'user';
+          }
+          const parsedEmail = String(row['Email Address'] || row['Email'] || row['email'] || '').trim();
+
           const emp = {
             id: staffId,
             name: String(row['Employee Name'] || row['name'] || '').trim(),
             khmerName: String(row['Khmer Name'] || row['khmerName'] || '').trim(),
+            email: parsedEmail,
             campus: String(row['Campus'] || row['campus'] || '').trim(),
             department: String(row['Department'] || row['department'] || '').trim(),
             position: String(row['Position'] || row['position'] || '').trim(),
@@ -149,6 +156,7 @@ export default function EmployeeProfiles() {
             evalModel: matchedModel,
             evalPeriod: String(row['Evaluation Period'] || row['evalPeriod'] || '').trim(),
             status: String(row['Status'] || '').trim() || 'Active',
+            role: parsedRole,
           };
 
           try {
@@ -195,6 +203,7 @@ export default function EmployeeProfiles() {
       'Staff ID': e.id,
       'Employee Name': e.name,
       'Khmer Name': e.khmerName || '',
+      'Email Address': e.email || '',
       'Campus': e.campus,
       'Department': e.department || '',
       'Position': e.position,
@@ -202,7 +211,9 @@ export default function EmployeeProfiles() {
       'Direct Supervisor ID': e.supervisorId || '',
       'Supporter ID': e.supporterId || '',
       'Evaluation Model': e.evalModel || '',
-      'Evaluation Period': e.evalPeriod || ''
+      'Evaluation Period': e.evalPeriod || '',
+      'Status': e.status || 'Active',
+      'User Role': e.role || 'user'
     }));
     
     const ws = XLSX.utils.json_to_sheet(data);
@@ -216,6 +227,7 @@ export default function EmployeeProfiles() {
       'Staff ID': 'EMP001',
       'Employee Name': 'John Doe',
       'Khmer Name': 'សុខ សាន្ត',
+      'Email Address': 'johndoe@example.com',
       'Campus': 'Main Campus',
       'Department': 'IT',
       'Position': 'Developer',
@@ -226,15 +238,16 @@ export default function EmployeeProfiles() {
       'Evaluation Condition': '60-40 (Direct Supervisor 60% + Supporter 40%)',
       'Evaluation Workflow': 'campus_60_40',
       'Evaluation Period': 'Q3 2026',
-      'Status': 'Active'
+      'Status': 'Active',
+      'User Role': 'user'
     }];
     const ws = XLSX.utils.json_to_sheet(data);
     // Add column widths
     ws['!cols'] = [
-      { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, 
+      { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 25 }, { wch: 15 }, 
       { wch: 15 }, { wch: 20 }, { wch: 12 }, { wch: 18 }, 
       { wch: 15 }, { wch: 20 }, { wch: 45 }, { wch: 20 },
-      { wch: 18 }, { wch: 10 }
+      { wch: 18 }, { wch: 10 }, { wch: 12 }
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template");
@@ -309,13 +322,23 @@ export default function EmployeeProfiles() {
                     <td className="px-6 py-4 font-bold text-indigo-600 dark:text-indigo-400">{e.id}</td>
                     <td className="px-6 py-4">
                       <div className="font-bold text-slate-900 dark:text-slate-100">{e.name}</div>
-                      <div className="text-xs">{e.khmerName}</div>
+                      <div className="text-xs text-slate-500">{e.khmerName}</div>
+                      {e.email && <div className="text-xs text-slate-400 mt-1">{e.email}</div>}
                     </td>
                     <td className="px-6 py-4">
                       <div>{e.campus}</div>
                       <div className="text-xs text-slate-500">{e.department}</div>
                     </td>
-                    <td className="px-6 py-4">{e.position}</td>
+                    <td className="px-6 py-4">
+                      <div>{e.position}</div>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold mt-1.5 ${
+                        e.role === 'superadmin' ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-400' :
+                        e.role === 'admin' ? 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-400' :
+                        'bg-slate-100 text-slate-800 dark:bg-slate-500/20 dark:text-slate-400'
+                      }`}>
+                        {e.role || 'user'}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 text-xs">
                       <div>Sup: {e.supervisorId || 'N/A'}</div>
                       <div>Sup2: {e.supporterId || 'N/A'}</div>

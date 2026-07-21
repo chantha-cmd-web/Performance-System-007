@@ -187,13 +187,14 @@ export default function UserManagement() {
                 <tr>
                   <th className="px-6 py-4">User</th>
                   <th className="px-6 py-4">User ID</th>
-                  <th className="px-6 py-4">Role</th>
+                  <th className="px-6 py-4">Role / Assignment</th>
+                  <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                 {loading ? (
-                  <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-400 dark:text-slate-500">Loading...</td></tr>
+                  <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-400 dark:text-slate-500">Loading...</td></tr>
                 ) : (
                   users.map(u => (
                     <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30">
@@ -202,16 +203,35 @@ export default function UserManagement() {
                           <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400">
                             <UserIcon size={16} />
                           </div>
-                          <span className="font-bold text-slate-900 dark:text-slate-100">{u.name}</span>
+                          <div>
+                            <div className="font-bold text-slate-900 dark:text-slate-100">{u.name}</div>
+                            {u.email && <div className="text-xs text-slate-400 mt-0.5">{u.email}</div>}
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 font-mono text-slate-500 dark:text-slate-400">{u.id}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                          u.role === 'superadmin' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400' : 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400'
+                        <div className="flex flex-col gap-1">
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider w-fit ${
+                            u.role === 'superadmin' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400' :
+                            u.role === 'admin' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400' :
+                            'bg-slate-100 dark:bg-slate-500/20 text-slate-700 dark:text-slate-400'
+                          }`}>
+                            {u.role === 'superadmin' && <Shield size={12} />}
+                            {u.role}
+                          </span>
+                          {u.position && (
+                            <span className="text-xs text-slate-400 font-medium">
+                              {u.position} {u.department ? `· ${u.department}` : ''}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
+                          (u.status || 'Active') === 'Active' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-400'
                         }`}>
-                          {u.role === 'superadmin' && <Shield size={12} />}
-                          {u.role}
+                          {u.status || 'Active'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">

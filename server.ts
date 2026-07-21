@@ -109,6 +109,17 @@ try { db.exec('ALTER TABLE evaluations ADD COLUMN supporter TEXT'); } catch(e) {
 try { db.exec('ALTER TABLE employees ADD COLUMN managementId TEXT'); } catch(e) {}
 try { db.exec('ALTER TABLE employees ADD COLUMN evalCondition TEXT'); } catch(e) {}
 try { db.exec('ALTER TABLE employees ADD COLUMN status TEXT DEFAULT "Active"'); } catch(e) {}
+try { db.exec('ALTER TABLE employees ADD COLUMN email TEXT'); } catch(e) {}
+try { db.exec('ALTER TABLE employees ADD COLUMN role TEXT DEFAULT "user"'); } catch(e) {}
+
+try { db.exec('ALTER TABLE users ADD COLUMN email TEXT'); } catch(e) {}
+try { db.exec('ALTER TABLE users ADD COLUMN position TEXT'); } catch(e) {}
+try { db.exec('ALTER TABLE users ADD COLUMN department TEXT'); } catch(e) {}
+try { db.exec('ALTER TABLE users ADD COLUMN campus TEXT'); } catch(e) {}
+try { db.exec('ALTER TABLE users ADD COLUMN supervisorId TEXT'); } catch(e) {}
+try { db.exec('ALTER TABLE users ADD COLUMN supporterId TEXT'); } catch(e) {}
+try { db.exec('ALTER TABLE users ADD COLUMN evalModel TEXT'); } catch(e) {}
+try { db.exec('ALTER TABLE users ADD COLUMN status TEXT DEFAULT "Active"'); } catch(e) {}
 
 // Seed Default Users if not exist
 const seedUsers = () => {
@@ -231,18 +242,50 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(401).json({ error: 'Invalid User ID or Password' });
   }
 
+  // Check if account status is Active (or exists and is not Active)
+  if (user.status && user.status !== 'Active') {
+    return res.status(403).json({ error: 'Your account is currently inactive. Please contact support.' });
+  }
+
   const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '8h' });
   logAudit(user.id, user.name, 'login', `User logged in from ${req.ip || 'unknown'}`);
-  res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
+  res.json({
+    token,
+    user: {
+      id: user.id,
+      name: user.name,
+      role: user.role,
+      email: user.email || '',
+      position: user.position || '',
+      department: user.department || '',
+      campus: user.campus || '',
+      supervisorId: user.supervisorId || '',
+      supporterId: user.supporterId || '',
+      evalModel: user.evalModel || '',
+      status: user.status || 'Active'
+    }
+  });
 });
 
 app.get('/api/auth/me', authenticateToken, (req, res) => {
-  res.json({ user: req.user });
+  try {
+    const user = db.prepare('SELECT id, name, role, email, position, department, campus, supervisorId, supporterId, evalModel, status FROM users WHERE id = ?').get(req.user!.id) as any;
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ user });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/users', authenticateToken, requireSuperAdmin, (req, res) => {
-  const users = db.prepare('SELECT id, name, role FROM users').all();
-  res.json(users);
+  try {
+    const users = db.prepare('SELECT id, name, role, email, position, department, campus, supervisorId, supporterId, evalModel, status FROM users').all();
+    res.json(users);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/users', authenticateToken, requireSuperAdmin, (req, res) => {
@@ -682,12 +725,13 @@ app.post('/api/employees', authenticateToken, requireSuperAdmin, (req, res) => {
   const data = req.body;
   try {
     const insertEmp = db.prepare(`
-      INSERT OR REPLACE INTO employees (id, name, khmerName, campus, department, position, category, supervisorId, supporterId, managementId, evalCondition, evalModel, evalPeriod, status)
-      VALUES (@id, @name, @khmerName, @campus, @department, @position, @category, @supervisorId, @supporterId, @managementId, @evalCondition, @evalModel, @evalPeriod, @status)
+      INSERT OR REPLACE INTO employees (id, name, khmerName, email, campus, department, position, category, supervisorId, supporterId, managementId, evalCondition, evalModel, evalPeriod, status, role)
+      VALUES (@id, @name, @khmerName, @email, @campus, @department, @position, @category, @supervisorId, @supporterId, @managementId, @evalCondition, @evalModel, @evalPeriod, @status, @role)
     `);
     insertEmp.run({
         ...data,
         khmerName: data.khmerName || '',
+        email: data.email || '',
         department: data.department || '',
         category: data.category || '',
         supervisorId: data.supervisorId || '',
@@ -696,21 +740,56 @@ app.post('/api/employees', authenticateToken, requireSuperAdmin, (req, res) => {
         evalCondition: data.evalCondition || '',
         evalModel: data.evalModel || '',
         evalPeriod: data.evalPeriod || '',
-        status: data.status || 'Active'
+        status: data.status || 'Active',
+        role: data.role || 'user'
     });
 
     // Auto-create/sync corresponding user profile in the users table so they can log in directly.
     // Default password is their Staff ID (the employee ID)
     const existingUser = db.prepare('SELECT id, role FROM users WHERE id = ?').get(data.id) as any;
+    const resolvedRole = data.role || 'user';
+    
     if (!existingUser) {
       const defaultPasswordHash = bcrypt.hashSync(data.id, 10);
-      db.prepare('INSERT INTO users (id, name, password, role) VALUES (?, ?, ?, ?)').run(data.id, data.name, defaultPasswordHash, 'user');
+      db.prepare(`
+        INSERT INTO users (id, name, password, role, email, position, department, campus, supervisorId, supporterId, evalModel, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        data.id,
+        data.name,
+        defaultPasswordHash,
+        resolvedRole,
+        data.email || '',
+        data.position || '',
+        data.department || '',
+        data.campus || '',
+        data.supervisorId || '',
+        data.supporterId || '',
+        data.evalModel || '',
+        data.status || 'Active'
+      );
       logAudit(req.user!.id, req.user!.name, 'auto_create_user', `Automatically created user account for employee ${data.name} (${data.id})`);
     } else {
-      // If user exists, sync their name (if they aren't superadmin or admin)
-      if (existingUser.role !== 'superadmin' && existingUser.role !== 'admin') {
-        db.prepare('UPDATE users SET name = ? WHERE id = ?').run(data.name, data.id);
-      }
+      // If user exists, sync all their details (name, role, email, position, department, campus, supervisorId, supporterId, evalModel, status)
+      // but preserve their password hash.
+      db.prepare(`
+        UPDATE users 
+        SET name = ?, role = ?, email = ?, position = ?, department = ?, campus = ?, supervisorId = ?, supporterId = ?, evalModel = ?, status = ?
+        WHERE id = ?
+      `).run(
+        data.name,
+        resolvedRole,
+        data.email || '',
+        data.position || '',
+        data.department || '',
+        data.campus || '',
+        data.supervisorId || '',
+        data.supporterId || '',
+        data.evalModel || '',
+        data.status || 'Active',
+        data.id
+      );
+      logAudit(req.user!.id, req.user!.name, 'sync_user', `Synced user account for employee ${data.name} (${data.id})`);
     }
 
     res.json({ success: true });

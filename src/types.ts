@@ -1,7 +1,15 @@
 export interface User {
   id: string;
   name: string;
-  role: 'admin' | 'superadmin';
+  role: 'admin' | 'superadmin' | 'user';
+  email?: string;
+  position?: string;
+  department?: string;
+  campus?: string;
+  supervisorId?: string;
+  supporterId?: string;
+  evalModel?: string;
+  status?: string;
 }
 
 export interface AuthResponse {
@@ -53,6 +61,7 @@ export interface Employee {
   id: string;
   name: string;
   khmerName?: string;
+  email?: string;
   campus: string;
   department?: string;
   position: string;
@@ -64,6 +73,7 @@ export interface Employee {
   evalModel?: string;
   evalPeriod?: string;
   status?: string;
+  role?: string;
 }
 
 export const STATUS_LABELS: Record<string, { label: string, kh: string, color: string }> = {
