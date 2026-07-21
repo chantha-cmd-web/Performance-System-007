@@ -1,5 +1,4 @@
 import { db, auth } from '../firebase';
-import { signInAnonymously } from 'firebase/auth';
 import { doc, setDoc, getDoc, deleteDoc, getDocFromServer } from 'firebase/firestore';
 
 export enum OperationType {
@@ -50,13 +49,9 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 }
 
 export async function ensureFirebaseAuth() {
-  if (!auth.currentUser) {
-    try {
-      await signInAnonymously(auth);
-    } catch (e) {
-      console.error("Failed to sign in anonymously with Firebase", e);
-    }
-  }
+  // Authentication is handled via Node/Express token endpoint.
+  // Anonymous Firebase sign-in is restricted and unnecessary.
+  return;
 }
 
 // Test Connection

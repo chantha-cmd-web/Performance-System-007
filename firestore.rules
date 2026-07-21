@@ -24,9 +24,12 @@ service cloud.firestore {
     }
 
     match /evaluation_autosaves/{draftId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn() && isValidAutosave(incoming());
-      allow delete: if isSignedIn();
+      allow read, delete: if true;
+      allow create, update: if isValidAutosave(incoming());
+    }
+
+    match /test/{testId} {
+      allow read: if true;
     }
   }
 }
