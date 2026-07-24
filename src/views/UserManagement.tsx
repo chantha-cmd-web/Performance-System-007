@@ -152,31 +152,31 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
+      <div className="flex flex-wrap gap-2.5 sm:gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
         <button 
           onClick={() => setActiveTab('users')}
-          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-colors ${activeTab === 'users' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+          className={`flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold transition-colors text-xs sm:text-sm ${activeTab === 'users' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
         >
-          <UserIcon size={18} />
+          <UserIcon size={16} />
           User Accounts
         </button>
         <button 
           onClick={() => setActiveTab('logs')}
-          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-colors ${activeTab === 'logs' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+          className={`flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold transition-colors text-xs sm:text-sm ${activeTab === 'logs' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
         >
-          <Activity size={18} />
+          <Activity size={16} />
           Audit Logs
         </button>
       </div>
 
       {activeTab === 'users' && (
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+          <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Administrator Accounts</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage system access and roles.</p>
+              <h2 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-100">Administrator Accounts</h2>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">Manage system access and roles.</p>
             </div>
-            <button onClick={handleOpenAdd} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm transition-colors text-sm">
+            <button onClick={handleOpenAdd} className="flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm transition-colors text-xs sm:text-sm self-start sm:self-auto w-full sm:w-auto">
               <Plus size={16} /> Add User
             </button>
           </div>

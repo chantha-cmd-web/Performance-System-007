@@ -263,22 +263,26 @@ export default function EmployeeProfiles() {
 
   return (
     <div className="flex flex-col h-full space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tight">Employee Profiles / <span className="font-medium text-lg text-slate-500">ប្រវត្តិរូបបុគ្គលិក</span></h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">Manage all {employees.length} employee records</p>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tight flex flex-wrap items-center gap-x-2">
+            <span>Employee Profiles</span>
+            <span className="text-slate-300 dark:text-slate-600">/</span>
+            <span className="font-medium text-base sm:text-lg text-slate-500">ប្រវត្តិរូបបុគ្គលិក</span>
+          </h1>
+          <p className="text-xs sm:text-sm font-medium text-slate-500 mt-1">Manage all {employees.length} employee records</p>
         </div>
-        <div className="flex gap-3">
-          <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 font-semibold shadow-sm">
-            <Download size={18} /> Export
+        <div className="flex flex-wrap gap-2 sm:gap-3">
+          <button onClick={handleExport} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 font-semibold shadow-sm text-xs sm:text-sm">
+            <Download size={16} /> Export
           </button>
           {user?.role === 'superadmin' && (
             <>
-              <button onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-500/20 font-semibold shadow-sm">
-                <Upload size={18} /> Bulk Import
+              <button onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-500/20 font-semibold shadow-sm text-xs sm:text-sm">
+                <Upload size={16} /> Bulk Import
               </button>
-              <button onClick={handleResetAll} className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-xl hover:bg-red-100 dark:hover:bg-red-500/20 font-semibold shadow-sm">
-                <Trash2 size={18} /> Reset All
+              <button onClick={handleResetAll} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-xl hover:bg-red-100 dark:hover:bg-red-500/20 font-semibold shadow-sm text-xs sm:text-sm">
+                <Trash2 size={16} /> Reset All
               </button>
             </>
           )}

@@ -288,18 +288,21 @@ export default function Layout() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden print:overflow-visible relative">
-        <header className="flex h-16 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md px-6 z-10 sticky top-0 print:hidden">
-          <div className="flex items-center gap-4">
+        <header className="flex h-16 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md px-3 sm:px-6 z-10 sticky top-0 print:hidden">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               onClick={toggleSidebar}
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 shadow-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 shadow-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
             >
               <Menu size={20} />
             </button>
-            <div className="font-bold text-slate-800 dark:text-slate-100 tracking-tight">Annual Performance Dashboard <span className="font-medium text-slate-500 dark:text-slate-400 ml-2 hidden sm:inline-block">/ ប្រព័ន្ធគ្រប់គ្រងការវាយតម្លៃបុគ្គលិក</span></div>
+            <div className="font-bold text-sm sm:text-base text-slate-800 dark:text-slate-100 tracking-tight truncate max-w-[120px] min-[360px]:max-w-[150px] min-[400px]:max-w-[190px] sm:max-w-none">
+              Annual Performance Dashboard
+              <span className="font-medium text-slate-500 dark:text-slate-400 ml-2 hidden lg:inline-block">/ ប្រព័ន្ធគ្រប់គ្រងការវាយតម្លៃបុគ្គលិក</span>
+            </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             <NotificationsBell />
             <button
               onClick={toggleTheme}

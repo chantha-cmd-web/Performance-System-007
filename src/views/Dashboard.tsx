@@ -1063,9 +1063,9 @@ export default function Dashboard() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.95 }}
             transition={{ duration: 0.3, ease: 'easeOut' }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl border border-slate-800 flex items-center gap-5 z-50 w-[90%] max-w-[620px] justify-between"
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-2xl shadow-2xl border border-slate-800 flex flex-col sm:flex-row items-center gap-3 sm:gap-5 z-50 w-[92%] sm:w-[90%] max-w-[620px] justify-between"
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
               <span className="p-1.5 bg-indigo-500/20 text-indigo-400 rounded-xl">
                 <CheckCircle size={18} />
               </span>
@@ -1075,7 +1075,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
               <button
                 onClick={handleBulkApprove}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 font-bold text-xs rounded-xl transition-all shadow-md flex items-center gap-1 cursor-pointer"
@@ -1440,8 +1440,8 @@ function AnalyticsDashboard({ evals }: { evals: Evaluation[] }) {
             </span>
           </div>
 
-          <div className="flex flex-col md:flex-row items-center justify-around gap-6 h-[300px]">
-            <div className="h-full w-full max-w-[320px] flex items-center justify-center">
+          <div className="flex flex-col md:flex-row items-center justify-around gap-6 min-h-[300px] md:h-[300px]">
+            <div className="h-[250px] md:h-full w-full max-w-[320px] flex items-center justify-center">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
