@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { User } from '../types';
 import { Shield, ShieldAlert, User as UserIcon, Activity, Clock, X, Trash2, Edit2, Plus, Key } from 'lucide-react';
 import { format } from 'date-fns';
+import toast from 'react-hot-toast';
 
 interface AuditLog {
   id: number;
@@ -128,13 +129,14 @@ export default function UserManagement() {
       });
       const data = await res.json();
       if (res.ok) {
+        toast.success('User deleted successfully');
         fetchUsers();
         fetchLogs();
       } else {
-        alert(data.error || 'Failed to delete user');
+        toast.error(data.error || 'Failed to delete user');
       }
     } catch (err) {
-      alert('An error occurred');
+      toast.error('An error occurred while deleting user');
     }
   };
 

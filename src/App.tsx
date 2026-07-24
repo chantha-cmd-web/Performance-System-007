@@ -10,9 +10,9 @@ import EvaluationForm from './views/EvaluationForm';
 import UserManagement from './views/UserManagement';
 import EmployeeProfiles from './views/EmployeeProfiles';
 import HRSettings from './views/HRSettings';
-import CriteriaManagement from './views/CriteriaManagement';
 import SelfEvalCriteriaManagement from './views/SelfEvalCriteriaManagement';
 import SelfEvaluation from './views/SelfEvaluation';
+import PositionForm from './views/PositionForm';
 import AuditLogs from './views/AuditLogs';
 import DataManagement from './views/DataManagement';
 
@@ -36,8 +36,8 @@ export default function App() {
               <Route path="evaluation" element={<EvaluationForm />} />
               <Route path="users" element={<UserManagement />} />
               <Route path="employees" element={<EmployeeProfiles />} />
+              <Route path="position-form" element={<PositionForm />} />
               <Route path="hr-settings" element={<HRSettings />} />
-              <Route path="settings" element={<CriteriaManagement />} />
               <Route path="self-eval-settings" element={<SelfEvalCriteriaManagement />} />
               <Route path="self-evaluation" element={<SelfEvaluation />} />
               <Route path="audit-logs" element={<AuditLogs />} />

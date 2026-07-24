@@ -173,7 +173,14 @@ export default function EmployeeProfiles() {
               newIdsInImport.add(staffId);
             } else {
               failedCount++;
-              errors.push({ row: rowNum, id: staffId, message: 'Server failed to save record' });
+              let errMsg = 'Server failed to save record';
+              try {
+                const errData = await res.json();
+                if (errData && errData.error) {
+                  errMsg = errData.error;
+                }
+              } catch (e) {}
+              errors.push({ row: rowNum, id: staffId, message: errMsg });
             }
           } catch (err) {
             failedCount++;

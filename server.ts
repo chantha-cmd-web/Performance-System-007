@@ -146,14 +146,43 @@ app.post('/api/auth/login', async (req, res) => {
   const { userId, password } = req.body;
   try {
     const userList = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-    const user = userList[0];
+    let user = userList[0];
     
-    if (!user || !bcrypt.compareSync(password, user.password)) {
-      return res.status(401).json({ error: 'Invalid User ID or Password' });
-    }
-
-    if (user.status && user.status !== 'Active') {
-      return res.status(403).json({ error: 'Your account is currently inactive. Please contact support.' });
+    if (user) {
+      if (!bcrypt.compareSync(password, user.password)) {
+        return res.status(401).json({ error: 'Invalid User ID or Password' });
+      }
+      if (user.status && user.status !== 'Active') {
+        return res.status(403).json({ error: 'Your account is currently inactive. Please contact support.' });
+      }
+    } else {
+      // Fallback to employees table
+      const empList = await db.select().from(employees).where(eq(employees.id, userId)).limit(1);
+      const emp = empList[0];
+      if (!emp) {
+        return res.status(401).json({ error: 'Invalid User ID or Password' });
+      }
+      // Password for regular employee defaults to their employee id
+      if (password !== emp.id) {
+        return res.status(401).json({ error: 'Invalid User ID or Password' });
+      }
+      if (emp.status && emp.status !== 'Active') {
+        return res.status(403).json({ error: 'Your account is currently inactive. Please contact support.' });
+      }
+      user = {
+        id: emp.id,
+        name: emp.name,
+        password: '',
+        role: emp.role || 'user',
+        email: emp.email || '',
+        position: emp.position || '',
+        department: emp.department || '',
+        campus: emp.campus || '',
+        supervisorId: emp.supervisorId || '',
+        supporterId: emp.supporterId || '',
+        evalModel: emp.evalModel || '',
+        status: emp.status || 'Active',
+      };
     }
 
     const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '8h' });
@@ -195,9 +224,27 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
       status: users.status,
     }).from(users).where(eq(users.id, req.user!.id)).limit(1);
     
-    const user = userList[0];
+    let user = userList[0];
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      // Fallback to employees table
+      const empList = await db.select().from(employees).where(eq(employees.id, req.user!.id)).limit(1);
+      const emp = empList[0];
+      if (!emp) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      user = {
+        id: emp.id,
+        name: emp.name,
+        role: emp.role || 'user',
+        email: emp.email || '',
+        position: emp.position || '',
+        department: emp.department || '',
+        campus: emp.campus || '',
+        supervisorId: emp.supervisorId || '',
+        supporterId: emp.supporterId || '',
+        evalModel: emp.evalModel || '',
+        status: emp.status || 'Active',
+      };
     }
     res.json({ user });
   } catch (err: any) {
@@ -851,42 +898,51 @@ app.post('/api/employees', authenticateToken, requireSuperAdmin, async (req, res
       }
     });
 
-    // Auto-create/sync corresponding user profile in the users table
-    const existingUserList = await db.select({ id: users.id, role: users.role }).from(users).where(eq(users.id, data.id)).limit(1);
-    const existingUser = existingUserList[0];
+    // Auto-create/sync corresponding user profile in the users table ONLY if designated as manager/supervisor/admin
     const resolvedRole = data.role || 'user';
-    
-    if (!existingUser) {
-      const defaultPasswordHash = bcrypt.hashSync(data.id, 10);
-      await db.insert(users).values({
-        id: data.id,
-        name: data.name,
-        password: defaultPasswordHash,
-        role: resolvedRole,
-        email: data.email || '',
-        position: data.position || '',
-        department: data.department || '',
-        campus: data.campus || '',
-        supervisorId: data.supervisorId || '',
-        supporterId: data.supporterId || '',
-        evalModel: data.evalModel || '',
-        status: data.status || 'Active',
-      });
-      logAudit(req.user!.id, req.user!.name, 'auto_create_user', `Automatically created user account for employee ${data.name} (${data.id})`);
+    const isManagerOrSupervisor = 
+      resolvedRole === 'admin' || 
+      resolvedRole === 'superadmin' || 
+      (data.position && /manager|supervisor|director|coordinator|principal|lead|head|chief|officer|president/i.test(data.position));
+
+    if (isManagerOrSupervisor) {
+      const existingUserList = await db.select({ id: users.id, role: users.role }).from(users).where(eq(users.id, data.id)).limit(1);
+      const existingUser = existingUserList[0];
+      if (!existingUser) {
+        const defaultPasswordHash = bcrypt.hashSync(data.id, 10);
+        await db.insert(users).values({
+          id: data.id,
+          name: data.name,
+          password: defaultPasswordHash,
+          role: resolvedRole,
+          email: data.email || '',
+          position: data.position || '',
+          department: data.department || '',
+          campus: data.campus || '',
+          supervisorId: data.supervisorId || '',
+          supporterId: data.supporterId || '',
+          evalModel: data.evalModel || '',
+          status: data.status || 'Active',
+        });
+        logAudit(req.user!.id, req.user!.name, 'auto_create_user', `Automatically created user account for employee ${data.name} (${data.id})`);
+      } else {
+        await db.update(users).set({
+          name: data.name,
+          role: resolvedRole,
+          email: data.email || '',
+          position: data.position || '',
+          department: data.department || '',
+          campus: data.campus || '',
+          supervisorId: data.supervisorId || '',
+          supporterId: data.supporterId || '',
+          evalModel: data.evalModel || '',
+          status: data.status || 'Active',
+        }).where(eq(users.id, data.id));
+        logAudit(req.user!.id, req.user!.name, 'sync_user', `Synced user account for employee ${data.name} (${data.id})`);
+      }
     } else {
-      await db.update(users).set({
-        name: data.name,
-        role: resolvedRole,
-        email: data.email || '',
-        position: data.position || '',
-        department: data.department || '',
-        campus: data.campus || '',
-        supervisorId: data.supervisorId || '',
-        supporterId: data.supporterId || '',
-        evalModel: data.evalModel || '',
-        status: data.status || 'Active',
-      }).where(eq(users.id, data.id));
-      logAudit(req.user!.id, req.user!.name, 'sync_user', `Synced user account for employee ${data.name} (${data.id})`);
+      // Ensure regular employees are not in the users table so they don't appear in the user management listing
+      await db.delete(users).where(and(eq(users.id, data.id), ne(users.role, 'superadmin'), ne(users.role, 'admin')));
     }
 
     res.json({ success: true });

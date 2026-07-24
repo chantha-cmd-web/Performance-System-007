@@ -2,7 +2,7 @@ import { apiFetch } from '../mockApi';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useDynamicCriteria, PREDEFINED_POSITIONS, EvaluationSection, EvaluationCriterion } from '../hooks/useSettings';
-import { FileText, Save, CheckCircle, AlertTriangle, User, Search, Eye, Edit2, Shield, Trash2, HelpCircle } from 'lucide-react';
+import { FileText, Save, CheckCircle, AlertTriangle, User, Search, Eye, Edit2, Shield, Trash2, HelpCircle, Briefcase, GraduationCap, DollarSign, Users, Heart, UserCheck, PlusCircle, BookOpen, Warehouse, Smile, ShieldAlert, ArrowRight, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
@@ -35,7 +35,30 @@ interface DynamicEvaluation {
   createdBy: string;
   createdByName: string;
   createdAt: string;
+  evaluationType?: string;
+  sectionsSnapshot?: any[];
+  criteriaSnapshot?: any[];
 }
+
+// Map positions to nice icons
+const getPositionIcon = (positionName: string) => {
+  switch (positionName) {
+    case 'Management': return <Shield className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
+    case 'Central Officer': return <UserCheck className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
+    case 'Supervisor': return <Users className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
+    case 'HR': return <Heart className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
+    case 'Teacher':
+    case 'Teaching Assistant (TA)': return <GraduationCap className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
+    case 'Accountant': return <DollarSign className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
+    case 'Nurse': return <PlusCircle className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
+    case 'Librarian': return <BookOpen className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
+    case 'Stock Controller':
+    case 'Uniform Seller': return <Warehouse className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
+    case 'Customer Service': return <Smile className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
+    case 'Discipline Officer': return <ShieldAlert className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
+    default: return <Briefcase className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
+  }
+};
 
 export default function SelfEvaluation() {
   const { user, token } = useAuth();
@@ -43,6 +66,7 @@ export default function SelfEvaluation() {
 
   const [employees, setEmployees] = useState<any[]>([]);
   const [evaluations, setEvaluations] = useState<DynamicEvaluation[]>([]);
+  const [positionForms, setPositionForms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Flow State
@@ -54,6 +78,94 @@ export default function SelfEvaluation() {
   const [formScores, setFormScores] = useState<Record<string, { selfScore: number; selfComment: string; superScore: number; superComment: string; supporterScore: number; supporterComment: string }>>({});
   const [isViewOnly, setIsViewOnly] = useState(false);
 
+  // Helper to get active weighting scheme for a position
+  const getWeightSchemeForPosition = (posName: string) => {
+    const pf = positionForms.find(p => p.positionName.toLowerCase() === posName.toLowerCase());
+    if (pf && pf.weightScheme) {
+      return pf.weightScheme;
+    }
+    // Fallback: existing logic
+    if (posName === 'Central Officer') return 'central_100';
+    if (posName === 'Management') return 'management_100';
+    return 'campus_60_40';
+  };
+
+  // Helper to get active evaluation type for a position
+  const getEvaluationTypeForPosition = (posName: string, evaluation?: Partial<DynamicEvaluation>) => {
+    if (evaluation?.evaluationType) {
+      return evaluation.evaluationType;
+    }
+    const pf = positionForms.find(p => p.positionName.toLowerCase() === posName.toLowerCase());
+    if (pf && pf.evaluationType) {
+      return pf.evaluationType;
+    }
+    // Fallback based on name
+    const lower = posName.toLowerCase();
+    if (lower.includes('teacher') || lower.includes('ta') || lower.includes('teaching')) return 'teacher';
+    if (lower.includes('management') || lower.includes('chief') || lower.includes('director') || lower.includes('manager') || lower.includes('supervisor')) return 'management';
+    return 'operations';
+  };
+
+  // Helper to get active sections for a position
+  const getSectionsForPosition = (posName: string, evaluation?: Partial<DynamicEvaluation>) => {
+    if (evaluation?.sectionsSnapshot && evaluation.sectionsSnapshot.length > 0) {
+      return evaluation.sectionsSnapshot.map((s: any) => ({
+        id: s.id,
+        nameKh: s.nameKh,
+        nameEn: s.nameEn,
+        weight: s.weight || Math.round(100 / evaluation.sectionsSnapshot!.length),
+        order: s.order,
+        status: 'Active',
+        positions: [posName]
+      }));
+    }
+    const pf = positionForms.find(p => p.positionName.toLowerCase() === posName.toLowerCase());
+    if (pf && pf.sections && pf.sections.length > 0) {
+      return pf.sections.map((s: any) => ({
+        id: s.id,
+        nameKh: s.nameKh,
+        nameEn: s.nameEn,
+        weight: s.weight || Math.round(100 / pf.sections.length),
+        order: s.order,
+        status: 'Active',
+        positions: [posName]
+      }));
+    }
+    // Fallback: global sections
+    return sections.filter(s => s.status === 'Active' && s.positions.includes(posName));
+  };
+
+  // Helper to get active criteria for a position
+  const getCriteriaForPosition = (posName: string, evaluation?: Partial<DynamicEvaluation>) => {
+    if (evaluation?.criteriaSnapshot && evaluation.criteriaSnapshot.length > 0) {
+      return evaluation.criteriaSnapshot.map((c: any) => ({
+        id: c.id,
+        nameKh: c.nameKh,
+        nameEn: c.nameEn,
+        sectionId: c.sectionId,
+        positions: [posName],
+        maxScore: c.maxScore || 10,
+        order: c.order,
+        status: 'Active'
+      }));
+    }
+    const pf = positionForms.find(p => p.positionName.toLowerCase() === posName.toLowerCase());
+    if (pf && pf.criteria && pf.criteria.length > 0) {
+      return pf.criteria.map((c: any) => ({
+        id: c.id,
+        nameKh: c.nameKh,
+        nameEn: c.nameEn,
+        sectionId: c.sectionId,
+        positions: [posName],
+        maxScore: c.maxScore || 10,
+        order: c.order,
+        status: 'Active'
+      }));
+    }
+    // Fallback: global criteria
+    return criteria.filter(c => c.status === 'Active' && c.positions.includes(posName));
+  };
+
   // Fetch initial databases
   useEffect(() => {
     fetchData();
@@ -63,9 +175,10 @@ export default function SelfEvaluation() {
     if (!token) return;
     try {
       setLoading(true);
-      const [empRes, evalsRes] = await Promise.all([
+      const [empRes, evalsRes, posFormsRes] = await Promise.all([
         apiFetch('/api/employees', { headers: { Authorization: `Bearer ${token}` } }),
-        apiFetch('/api/settings/dynamic_self_evaluations', { headers: { Authorization: `Bearer ${token}` } })
+        apiFetch('/api/settings/dynamic_self_evaluations', { headers: { Authorization: `Bearer ${token}` } }),
+        apiFetch('/api/settings/position_forms', { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
       if (empRes.ok) {
@@ -76,6 +189,11 @@ export default function SelfEvaluation() {
       if (evalsRes.ok) {
         const evalsData = await evalsRes.json();
         setEvaluations(Array.isArray(evalsData) ? evalsData : []);
+      }
+
+      if (posFormsRes.ok) {
+        const pfData = await posFormsRes.json();
+        setPositionForms(Array.isArray(pfData) ? pfData : []);
       }
     } catch (e) {
       console.error('Error fetching dynamic evaluation data', e);
@@ -128,10 +246,12 @@ export default function SelfEvaluation() {
       return;
     }
 
-    const defaultWeightScheme = selectedPosition === 'Central Officer' ? 'central_100' : 'campus_60_40';
+    const defaultWeightScheme = getWeightSchemeForPosition(selectedPosition);
+    const evalType = getEvaluationTypeForPosition(selectedPosition);
+    const positionSections = getSectionsForPosition(selectedPosition);
+    const positionCriteria = getCriteriaForPosition(selectedPosition);
 
     // Seed empty scores for positions criteria
-    const positionCriteria = criteria.filter(c => c.status === 'Active' && c.positions.includes(selectedPosition));
     const initialScores: Record<string, any> = {};
     positionCriteria.forEach(c => {
       initialScores[c.id] = {
@@ -154,16 +274,68 @@ export default function SelfEvaluation() {
       reviewDate: new Date().toISOString().split('T')[0],
       evalPeriod: myEmployeeProfile?.evalPeriod || 'Annual 2026',
       weightScheme: defaultWeightScheme as any,
+      evaluationType: evalType,
       status: 'Draft',
       createdBy: user?.id || '',
       createdByName: user?.name || '',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      sectionsSnapshot: positionSections,
+      criteriaSnapshot: positionCriteria
     };
 
     setCurrentEval(newEval);
     setFormScores(initialScores);
     setIsViewOnly(false);
     setActiveTab('form');
+  };
+
+  const handleSelectPosition = (pos: string) => {
+    setSelectedPosition(pos);
+    
+    // Auto-load Evaluation Type and Weighting Scheme from the employee's profile/dynamic positions
+    const defaultWeightScheme = getWeightSchemeForPosition(pos);
+    const evalType = getEvaluationTypeForPosition(pos);
+    const positionSections = getSectionsForPosition(pos);
+    const positionCriteria = getCriteriaForPosition(pos);
+
+    // Seed empty scores for position's criteria
+    const initialScores: Record<string, any> = {};
+    positionCriteria.forEach(c => {
+      initialScores[c.id] = {
+        selfScore: 0,
+        selfComment: '',
+        superScore: 0,
+        superComment: '',
+        supporterScore: 0,
+        supporterComment: ''
+      };
+    });
+
+    const newEval: Partial<DynamicEvaluation> = {
+      id: 'dynamic_eval_' + Date.now(),
+      employeeId: myEmployeeProfile?.id || user?.id || 'EMP-TEMP',
+      employeeName: myEmployeeProfile?.name || user?.name || 'Temporary Employee',
+      position: pos,
+      campus: myEmployeeProfile?.campus || 'Phnom Penh',
+      department: myEmployeeProfile?.department || 'Operations',
+      reviewDate: new Date().toISOString().split('T')[0],
+      evalPeriod: myEmployeeProfile?.evalPeriod || 'Annual 2026',
+      weightScheme: defaultWeightScheme as any,
+      evaluationType: evalType,
+      status: 'Draft',
+      createdBy: user?.id || '',
+      createdByName: user?.name || '',
+      createdAt: new Date().toISOString(),
+      sectionsSnapshot: positionSections,
+      criteriaSnapshot: positionCriteria
+    };
+
+    setCurrentEval(newEval);
+    setFormScores(initialScores);
+    setIsViewOnly(false);
+    setActiveTab('form');
+    
+    toast.success(`Position ${pos} selected. Settings automatically loaded from profile.`);
   };
 
   // Handle Editing an existing evaluation
@@ -181,7 +353,7 @@ export default function SelfEvaluation() {
     });
 
     // Make sure any missing active criteria for this position are added
-    const posCriteria = criteria.filter(c => c.status === 'Active' && c.positions.includes(evaluation.position));
+    const posCriteria = getCriteriaForPosition(evaluation.position, evaluation);
     posCriteria.forEach(c => {
       if (!initialScores[c.id]) {
         initialScores[c.id] = {
@@ -227,7 +399,7 @@ export default function SelfEvaluation() {
   // Validation: Check if comments are missing for any scored criterion
   const getMissingCommentsCount = () => {
     let missing = 0;
-    const activeCritList = criteria.filter(c => c.status === 'Active' && c.positions.includes(selectedPosition));
+    const activeCritList = getCriteriaForPosition(selectedPosition, currentEval);
     activeCritList.forEach(c => {
       const scoreObj = formScores[c.id];
       if (scoreObj) {
@@ -273,7 +445,7 @@ export default function SelfEvaluation() {
     const totalSupporter = scoreItems.reduce((sum, item) => sum + item.supporterScore, 0);
 
     // Calculate maximum possible scores
-    const activeCritList = criteria.filter(c => c.status === 'Active' && c.positions.includes(selectedPosition));
+    const activeCritList = getCriteriaForPosition(selectedPosition, currentEval);
     const maxPossible = activeCritList.reduce((sum, c) => sum + (c.maxScore || 10), 0);
 
     // Determine target status
@@ -306,7 +478,9 @@ export default function SelfEvaluation() {
       totalSupporterScore: totalSupporter,
       overallScore: Number(overall.toFixed(1)),
       status: targetStatus,
-      createdAt: currentEval.createdAt || new Date().toISOString()
+      createdAt: currentEval.createdAt || new Date().toISOString(),
+      sectionsSnapshot: currentEval.sectionsSnapshot || getSectionsForPosition(selectedPosition, currentEval),
+      criteriaSnapshot: currentEval.criteriaSnapshot || activeCritList
     };
 
     const isNew = !evaluations.some(ev => ev.id === updatedEval.id);
@@ -404,72 +578,85 @@ export default function SelfEvaluation() {
 
       {/* STEP 1 & 2: Main Select Dashboard or lists */}
       {activeTab === 'my-evals' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* New Self Evaluation Prompt Card */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 flex flex-col justify-between">
-            <div className="space-y-4">
-              <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center">
-                <FileText size={24} />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-base">ការវាយតម្លៃខ្លួនឯងថ្មី / Start New Self-Evaluation</h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Select your position below to load your custom position-based evaluation form dynamically.
-                </p>
-              </div>
-
-              {/* Position Selection */}
-              <div className="space-y-1.5 pt-2">
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Position / តួនាទី</label>
-                <select
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold"
-                  value={selectedPosition}
-                  onChange={(e) => setSelectedPosition(e.target.value)}
-                  id="select-self-eval-position"
-                >
-                  <option value="">-- Choose Position --</option>
-                  {PREDEFINED_POSITIONS.map(pos => (
-                    <option key={pos} value={pos}>{pos}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Position verification indicator */}
-              {selectedPosition && (
-                <div className={`p-3 rounded-xl border text-xs flex gap-2.5 items-start ${
-                  isPositionMatched 
-                    ? 'bg-emerald-50/50 border-emerald-100 text-emerald-800 dark:bg-emerald-500/5 dark:border-emerald-500/20 dark:text-emerald-400' 
-                    : 'bg-rose-50 border-rose-100 text-rose-800 dark:bg-rose-500/5 dark:border-rose-500/20 dark:text-rose-400'
-                }`}>
-                  <div className="mt-0.5">
-                    {isPositionMatched ? <CheckCircle size={15} /> : <AlertTriangle size={15} />}
-                  </div>
-                  <div>
-                    <span className="font-bold">Position Validation: </span>
-                    {isPositionMatched 
-                      ? `Looks good! You are starting evaluation for ${selectedPosition}.`
-                      : `Selected position (${selectedPosition}) does not match your profile official position of "${officialPosition || 'Unknown'}". Submitting will be blocked.`
-                    }
-                  </div>
-                </div>
-              )}
+        <div className="space-y-10">
+          {/* Position Card Selection Dashboard */}
+          <div className="space-y-6">
+            <div className="border-b border-slate-100 dark:border-slate-700 pb-3">
+              <h2 className="text-lg font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+                ជំហានទី ១៖ ជ្រើសរើសតួនាទី / Step 1: Select Your Position Card
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Select your position to automatically load your weighting scheme and performance criteria set.
+              </p>
             </div>
 
-            <button
-              onClick={handleStartNewEval}
-              disabled={!selectedPosition}
-              className="mt-6 w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-sm rounded-xl transition-colors active:scale-95 disabled:opacity-50"
-              id="btn-start-self-eval"
-            >
-              Load Form & Begin
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {(positionForms.length > 0 ? positionForms.filter(pf => pf.status === 'Active').map(pf => pf.positionName) : PREDEFINED_POSITIONS).map(pos => {
+                const applicableSecs = getSectionsForPosition(pos);
+                const applicableCrits = getCriteriaForPosition(pos);
+                const isMyOfficial = pos.toLowerCase() === officialPosition.toLowerCase();
+
+                return (
+                  <div
+                    key={pos}
+                    onClick={() => handleSelectPosition(pos)}
+                    className="group bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-500/50 dark:hover:border-indigo-500/50 rounded-2xl p-5 relative shadow-sm cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:scale-[1.02] flex flex-col justify-between min-h-[160px]"
+                  >
+                    {/* Click Indicator Top-Right */}
+                    <div className="absolute top-5 right-5 text-slate-300 group-hover:text-indigo-500 transition-colors">
+                      <ChevronRight size={18} />
+                    </div>
+
+                    {/* Top block */}
+                    <div className="flex gap-4 items-start">
+                      {/* Left icon wrapper */}
+                      <div className="w-12 h-12 bg-purple-50 dark:bg-purple-950/40 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110">
+                        {getPositionIcon(pos)}
+                      </div>
+
+                      {/* Info */}
+                      <div className="space-y-1 pr-6">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-sm leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                            {pos}
+                          </h3>
+                          {isMyOfficial && (
+                            <span className="text-[9px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 px-1.5 py-0.5 rounded">
+                              Your Profile
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 font-medium">
+                          Active evaluation package
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Bottom block metadata */}
+                    <div className="mt-4 pt-4 border-t border-slate-50 dark:border-slate-700/50 flex items-center justify-between text-[11px]">
+                      <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-bold">
+                        <span>{applicableSecs.length} Sections</span>
+                        <span className="text-slate-300 dark:text-slate-600">•</span>
+                        <span>{applicableCrits.length} Criteria</span>
+                      </div>
+                      <span className="bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider">
+                        Published
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Previous Evals list */}
-          <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+          {/* Previous Evals history full-width list */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
             <div className="p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-              <h3 className="font-extrabold text-slate-800 dark:text-slate-100">ប្រវត្តិវាយតម្លៃខ្លួនឯង / My Self-Evaluation History</h3>
-              <span className="text-xs text-slate-500 font-bold bg-slate-100 dark:bg-slate-700 px-2.5 py-1 rounded-lg">{myEvals.length} Records</span>
+              <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-base">ប្រវត្តិវាយតម្លៃខ្លួនឯង / My Self-Evaluation History</h3>
+              <span className="text-xs text-slate-500 font-bold bg-slate-100 dark:bg-slate-700 px-2.5 py-1 rounded-lg">
+                {myEvals.length} Records
+              </span>
             </div>
 
             <div className="overflow-x-auto">
@@ -529,7 +716,7 @@ export default function SelfEvaluation() {
 
                   {myEvals.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-bold">No evaluation record history found. Select a position on the left to start your first evaluation!</td>
+                      <td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-bold">No evaluation record history found. Select a position above to start your first evaluation!</td>
                     </tr>
                   )}
                 </tbody>
@@ -729,10 +916,9 @@ export default function SelfEvaluation() {
 
           {/* SECTIONS AND CRITERIA RENDERING */}
           <div className="space-y-8">
-            {sections
-              .filter(sec => sec.status === 'Active' && sec.positions.includes(selectedPosition))
+            {getSectionsForPosition(selectedPosition, currentEval)
               .map((section) => {
-                const sectionCriteria = criteria.filter(c => c.status === 'Active' && c.sectionId === section.id && c.positions.includes(selectedPosition));
+                const sectionCriteria = getCriteriaForPosition(selectedPosition, currentEval).filter(c => c.sectionId === section.id);
                 if (sectionCriteria.length === 0) return null;
 
                 return (
